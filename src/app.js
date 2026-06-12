@@ -41,7 +41,28 @@ class ApexApplication {
     document.addEventListener("DOMContentLoaded", () => {
       this.renderNavigation();
       this.bindEvents();
+      
+      // Auto-detect incoming deep links for specific blog articles (Pathname or Hash)
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      
+      let targetSlug = null;
+      if (path.includes("/blog/")) {
+        targetSlug = path.split("/blog/")[1]?.replace(/\/$/, "");
+      } else if (hash.includes("/blog/")) {
+        targetSlug = hash.split("/blog/")[1]?.replace(/\/$/, "");
+      }
+
       this.switchView("blog-frontend");
+
+      if (targetSlug) {
+        const artObj = this.articles.find(a => a.slug === targetSlug || a.id === targetSlug);
+        if (artObj) {
+          setTimeout(() => {
+            this.openFullArticleView(artObj.id);
+          }, 50);
+        }
+      }
     });
   }
 
@@ -94,6 +115,16 @@ class ApexApplication {
     this.bindEditorListeners();
     // Bind Idea Brainstorming helper
     this.bindBrainstormListeners();
+
+    // Browser History Back/Forward integration
+    window.addEventListener("popstate", (e) => {
+      const state = e.state;
+      if (state?.view === "article" && state.id) {
+        this.openFullArticleView(state.id);
+      } else {
+        this.switchView("blog-frontend");
+      }
+    });
   }
 
   switchView(viewName) {
@@ -131,6 +162,13 @@ class ApexApplication {
       this.viewingArticleId = null;
       document.getElementById("frontend-grid-view-wrapper")?.classList.remove("hidden");
       document.getElementById("frontend-full-article-wrapper")?.classList.add("hidden");
+      
+      try {
+        if (window.location.pathname.includes("/blog/")) {
+          window.history.pushState({ view: "blog-frontend" }, "Explore Dispatches", "/");
+        }
+      } catch(e) {}
+
       this.renderFrontendHero();
       this.renderFrontendCategories();
       this.renderFrontendBlogGrid();
@@ -490,6 +528,11 @@ class ApexApplication {
 
     gridWrapper.classList.add("hidden");
     articleWrapper.classList.remove("hidden");
+
+    // Push highly elegant clean URL to browser History address bar
+    try {
+      window.history.pushState({ view: "article", id: article.id }, article.title, `/blog/${article.slug}`);
+    } catch(e) {}
 
     const renderedProse = window.ApexExporter.parseSimpleMarkdown(article.content);
     const domain = window.ApexExporter.getDomain();
