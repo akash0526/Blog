@@ -178,28 +178,118 @@ class ApexApplication {
     const header = document.getElementById("main-app-header");
     if (!header) return;
     
-    header.innerHTML = `
-      <div class="container header-inner">
-        <a id="brand-logo-link" class="logo-area">
-          <span class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-lg shadow-indigo-500/30">⚡</span>
-          <span>ApexSEO <span class="logo-icon font-black">Pulse</span></span>
-        </a>
-        <nav class="nav-links">
-          <a class="nav-link active" data-view="blog-frontend">Live Blog</a>
-          <a class="nav-link flex items-center gap-1.5 text-indigo-600 font-bold bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100" data-view="writer-studio">
-            ${window.ApexIcons.penTool} Write Daily Drop
+    // Check if user has unlocked the expert CMS workspace mode
+    const isCmsMode = this.isAdminMode || false;
+
+    if (!isCmsMode) {
+      // 🌐 VISITOR / READER PREMIUM FRONTEND HEADER
+      header.innerHTML = `
+        <div class="container header-inner h-20">
+          <a id="brand-logo-link" class="logo-area flex items-center gap-3 text-xl font-black text-slate-900">
+            <span class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center text-base font-black shadow-lg shadow-indigo-500/30 transform hover:scale-105 transition">⚡</span>
+            <span>Apex<span class="text-indigo-600 font-black">Pulse</span></span>
           </a>
-          <a class="nav-link" data-view="kanban-calendar">Content Calendar</a>
-          <a class="nav-link" data-view="analytics-dashboard">Live Analytics</a>
-          <a class="nav-link" data-view="seo-tools">SEO Suite</a>
-        </nav>
-        <div class="flex items-center gap-4">
-          <button id="theme-toggle-btn" class="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm cursor-pointer" title="Toggle Theme">
-            ${window.ApexIcons.moon}
-          </button>
+          
+          <nav class="nav-links hidden md:flex items-center gap-8 font-bold text-sm text-slate-600">
+            <a class="nav-link active hover:text-indigo-600 transition" data-view="blog-frontend">Explore Dispatches</a>
+            <a class="cat-quick-link hover:text-indigo-600 cursor-pointer transition" data-cat="Tech & AI">Tech & AI</a>
+            <a class="cat-quick-link hover:text-indigo-600 cursor-pointer transition" data-cat="Startups & Growth">Startups & Growth</a>
+            <a class="cat-quick-link hover:text-indigo-600 cursor-pointer transition" data-cat="SEO & Search">SEO Strategy</a>
+          </nav>
+          
+          <div class="flex items-center gap-4">
+            <button id="cta-nav-newsletter" class="btn btn-primary px-5 py-2.5 rounded-xl font-black text-xs shadow-md shadow-indigo-600/20 hidden sm:inline-flex">
+              Join 45k+ Engineers
+            </button>
+            <button id="btn-unlock-cms" class="btn bg-slate-900 text-slate-200 hover:text-white hover:bg-slate-800 px-4 py-2.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 shadow-sm" title="Unlock Author Writing Studio & Expert CMS">
+              ⚙️ Padlock CMS
+            </button>
+            <button id="theme-toggle-btn" class="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm cursor-pointer" title="Toggle Theme">
+              ${window.ApexIcons?.moon || '🌙'}
+            </button>
+          </div>
         </div>
-      </div>
-    `;
+      `;
+
+      header.querySelectorAll(".cat-quick-link").forEach(link => {
+        link.addEventListener("click", () => {
+          this.activeCategoryFilter = link.getAttribute("data-cat");
+          this.switchView("blog-frontend");
+          this.renderFrontendCategories();
+          this.renderFrontendBlogGrid();
+          window.scrollTo({ top: 500, behavior: "smooth" });
+        });
+      });
+
+      document.getElementById("cta-nav-newsletter")?.addEventListener("click", () => {
+        document.getElementById("newsletter-signup-box")?.scrollIntoView({ behavior: "smooth" });
+      });
+
+      document.getElementById("btn-unlock-cms")?.addEventListener("click", () => {
+        this.isAdminMode = true;
+        this.renderNavigation();
+        this.switchView("writer-studio");
+        this.showToast("⚡ Master Padlock Unlocked: Switched to Expert Author Studio & CMS!");
+      });
+
+    } else {
+      // ⚙️ EXPERT AUTHOR STUDIO & CMS CONTROL HEADER
+      header.innerHTML = `
+        <div class="container header-inner h-20 bg-slate-900 text-white px-6 rounded-b-3xl shadow-xl">
+          <a id="brand-logo-link" class="logo-area flex items-center gap-3 text-xl font-black text-white">
+            <span class="w-9 h-9 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-base font-black shadow-lg shadow-emerald-500/30 animate-pulse">⚡</span>
+            <span>Apex<span class="text-emerald-400">CMS Vault</span></span>
+          </a>
+          
+          <nav class="nav-links flex items-center gap-6 font-extrabold text-xs text-slate-300 overflow-x-auto">
+            <a class="nav-link hover:text-emerald-400 transition" data-view="blog-frontend">&larr; Live Blog View</a>
+            <a class="nav-link bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-black px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md" data-view="writer-studio">
+              ✍️ Write Daily Drop
+            </a>
+            <a class="nav-link hover:text-emerald-400 transition" data-view="kanban-calendar">📅 Kanban Calendar</a>
+            <a class="nav-link hover:text-emerald-400 transition" data-view="analytics-dashboard">📊 Telemetry Hits</a>
+            <a class="nav-link hover:text-emerald-400 transition" data-view="seo-tools">⚡ SEO Suite & Vault</a>
+          </nav>
+          
+          <div class="flex items-center gap-3">
+            <button id="btn-lock-cms" class="btn bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl font-bold text-xs border border-slate-700" title="Switch back to clean Visitor reading mode">
+              🔒 Lock Mode
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById("btn-lock-cms")?.addEventListener("click", () => {
+        this.isAdminMode = false;
+        this.renderNavigation();
+        this.switchView("blog-frontend");
+        this.showToast("🔒 Padlock Secure: Switched back to flawless Visitor Blog Frontend.");
+      });
+    }
+
+    // Bind common header events
+    document.getElementById("brand-logo-link")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.switchView("blog-frontend");
+    });
+
+    header.querySelectorAll(".nav-link").forEach(link => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const view = link.getAttribute("data-view");
+        if (view) this.switchView(view);
+      });
+    });
+
+    const themeBtn = document.getElementById("theme-toggle-btn");
+    if (themeBtn) {
+      themeBtn.addEventListener("click", () => {
+        const currentTheme = document.body.getAttribute("data-theme");
+        const newTheme = currentTheme === "dark" ? "light" : "dark";
+        document.body.setAttribute("data-theme", newTheme);
+        themeBtn.innerHTML = newTheme === "dark" ? (window.ApexIcons?.sun || '☀️') : (window.ApexIcons?.moon || '🌙');
+      });
+    }
   }
 
   renderFrontendHero() {
@@ -207,38 +297,41 @@ class ApexApplication {
     if (!hero) return;
 
     hero.innerHTML = `
-      <div class="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 text-white rounded-3xl p-8 sm:p-12 shadow-2xl mb-12 relative overflow-hidden">
+      <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-8 sm:p-14 shadow-2xl mb-12 relative overflow-hidden border border-slate-800">
         <div class="absolute -right-20 -bottom-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl"></div>
         <div class="max-w-3xl relative z-10">
           <div class="flex items-center gap-3 mb-6">
-            <span class="bg-emerald-500/20 text-emerald-400 font-black text-xs px-3 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              PUBLISHING STREAK: ${this.streakStats.currentStreak} DAYS LIVE
+            <span class="bg-emerald-500/20 text-emerald-400 font-black text-xs px-3.5 py-1.5 rounded-full border border-emerald-500/30 flex items-center gap-2 tracking-wide">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              DEFINITIVE TECH & ENGINEERING DISPATCHES
             </span>
-            <span class="bg-indigo-500/20 text-indigo-300 font-bold text-xs px-3 py-1 rounded-full border border-indigo-500/30">
-              ⚡ High Output Engine
+            <span class="bg-indigo-500/20 text-indigo-300 font-extrabold text-xs px-3.5 py-1.5 rounded-full border border-indigo-500/30">
+              ⚡ 2026 Edition
             </span>
           </div>
+          
           <h1 class="text-4xl sm:text-6xl font-black tracking-tight leading-none mb-6">
-            The Daily Dispatch. <br><span class="bg-gradient-to-r from-indigo-400 via-pink-400 to-amber-300 bg-clip-text text-transparent">Dominate Search Traffic.</span>
+            High Output Writing. <br><span class="bg-gradient-to-r from-indigo-300 via-pink-300 to-amber-200 bg-clip-text text-transparent">Unrivaled Industry Depth.</span>
           </h1>
-          <p class="text-slate-300 text-lg mb-8 max-w-2xl">
-            An expert software engineering blog optimized for industry dominance. Every piece is rigorously formatted, structured with live JSON-LD, and tailored for absolute Google PageRank capture.
+          
+          <p class="text-slate-300 text-base sm:text-lg mb-10 max-w-2xl leading-relaxed font-normal">
+            Welcome to Apex Pulse. We publish thorough, definitive guides on complex software engineering architectures, modern Jamstack SEO velocity, and programmatic long-tail dominance.
           </p>
+          
           <div class="flex flex-wrap items-center gap-4">
-            <button id="cta-write-new" class="btn btn-primary px-8 py-4 text-base rounded-2xl shadow-xl shadow-indigo-600/30 font-extrabold flex items-center gap-2">
-              ${window.ApexIcons.sparkles} Publish Today's Drop
+            <button id="cta-hero-explore" class="btn btn-primary px-8 py-4 text-sm rounded-2xl shadow-xl shadow-indigo-600/30 font-black flex items-center gap-2 transform hover:-translate-y-0.5 transition">
+              Explore Dispatches &rarr;
             </button>
-            <button id="cta-newsletter-scroll" class="btn btn-secondary text-white border-slate-700 hover:border-slate-500 px-6 py-4 rounded-2xl font-bold">
-              Join 45k+ Readers
+            <button id="cta-newsletter-scroll" class="btn btn-secondary text-white bg-white/5 border-slate-700 hover:border-slate-500 px-6 py-4 rounded-2xl font-bold text-sm">
+              Join 45,000+ Readers
             </button>
           </div>
         </div>
       </div>
     `;
 
-    document.getElementById("cta-write-new")?.addEventListener("click", () => {
-      this.startNewArticle();
+    document.getElementById("cta-hero-explore")?.addEventListener("click", () => {
+      document.getElementById("frontend-categories-bar")?.scrollIntoView({ behavior: "smooth" });
     });
 
     document.getElementById("cta-newsletter-scroll")?.addEventListener("click", () => {
@@ -411,114 +504,129 @@ class ApexApplication {
       return { level, text, id };
     });
 
+    const isCmsMode = this.isAdminMode || false;
+
     articleWrapper.innerHTML = `
-      <div class="py-6 mb-4">
-        <button id="btn-back-to-grid" class="btn btn-secondary text-xs px-4 py-2 font-bold bg-white rounded-xl shadow-sm">
-          &larr; Back to Live Blog
+      <!-- Top Navigation Breadcrumb -->
+      <div class="py-6 mb-2 flex items-center justify-between">
+        <button id="btn-back-to-grid" class="btn btn-secondary text-xs px-4 py-2 font-bold bg-white rounded-xl shadow-sm border border-slate-200/80 hover:bg-slate-50 flex items-center gap-2">
+          &larr; Back to Explore Blog
         </button>
+        
+        ${isCmsMode ? `
+          <div class="flex items-center gap-2">
+            <button id="btn-edit-this-post" class="btn btn-primary px-4 py-2 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-sm">
+              ✍️ Edit in Studio
+            </button>
+            <button id="btn-export-standalone" class="btn btn-success px-4 py-2 text-xs font-black rounded-xl flex items-center gap-1.5 shadow-sm" title="Download production-ready static HTML post">
+              ⚡ Export HTML Page
+            </button>
+          </div>
+        ` : ''}
       </div>
 
       <div class="flex flex-col lg:flex-row gap-12">
         
         <!-- Main Full Article Layout -->
-        <article class="flex-1 bg-white rounded-3xl border border-slate-200 p-8 sm:p-14 shadow-xl relative">
+        <article class="flex-1 bg-white rounded-3xl border border-slate-200 p-8 sm:p-16 shadow-xl relative">
           
-          <div class="flex items-center gap-3 text-xs font-black uppercase tracking-wider text-indigo-600 mb-6">
-            <span class="bg-indigo-50 px-3 py-1.5 rounded-full">${article.category}</span>
-            <span class="text-slate-400">•</span>
-            <span class="text-slate-500">${article.publishedAt}</span>
-            <span class="text-slate-400">•</span>
-            <span class="text-slate-500">${article.readingTime}</span>
-            <span class="ml-auto bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-full text-xs font-black">
-              ⚡ ${article.seoScore} Audit Score
-            </span>
+          <div class="flex items-center gap-3 text-xs font-black uppercase tracking-wider text-indigo-600 mb-6 flex-wrap">
+            <span class="bg-indigo-50 px-3.5 py-1.5 rounded-full">${article.category}</span>
+            <span class="text-slate-300">•</span>
+            <span class="text-slate-500 font-semibold">${article.publishedAt}</span>
+            <span class="text-slate-300">•</span>
+            <span class="text-slate-500 font-semibold">${article.readingTime}</span>
           </div>
 
-          <h1 class="text-3xl sm:text-5xl font-black text-slate-900 leading-tight mb-8">
+          <h1 class="text-3xl sm:text-5xl font-black text-slate-900 leading-tight mb-10">
             ${article.title}
           </h1>
 
-          <!-- Author bar -->
-          <div class="flex items-center gap-4 py-6 border-y border-slate-100 mb-10 bg-slate-50 px-6 rounded-2xl">
-            <img src="${article.author?.avatar}" class="w-14 h-14 rounded-full object-cover shadow-md">
+          <!-- Professional Author Bio Bar -->
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 py-6 border-y border-slate-100 mb-12 bg-slate-50 px-8 rounded-2xl">
+            <img src="${article.author?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80'}" class="w-14 h-14 rounded-full object-cover shadow-md border-2 border-white">
             <div>
-              <div class="font-extrabold text-slate-900">${article.author?.name}</div>
-              <div class="text-xs font-semibold text-indigo-600">${article.author?.role}</div>
+              <div class="font-black text-slate-900 text-base">${article.author?.name || 'Alex Rivera'}</div>
+              <div class="text-xs font-bold text-indigo-600">${article.author?.role || 'Principal Software Engineer'}</div>
             </div>
-            <div class="ml-auto flex items-center gap-2">
-              <button id="btn-edit-this-post" class="btn btn-primary px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm">
-                ${window.ApexIcons.edit} Edit in Studio
-              </button>
-              <button id="btn-export-standalone" class="btn btn-secondary px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 bg-white shadow-sm" title="Download production-ready static HTML post">
-                ${window.ApexIcons.download} Export HTML
-              </button>
+            <div class="sm:ml-auto text-xs font-extrabold text-slate-500 bg-white px-3.5 py-2 rounded-xl border border-slate-200/80 shadow-sm flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Verified Author
             </div>
           </div>
 
-          <!-- Hero Img -->
-          ${article.image ? `<img src="${article.image}" class="w-full h-[400px] object-cover rounded-3xl mb-12 shadow-xl">` : ''}
+          <!-- Featured Hero Media -->
+          ${article.image ? `<img src="${article.image}" class="w-full h-[380px] sm:h-[450px] object-cover rounded-3xl mb-14 shadow-2xl border border-slate-100">` : ''}
 
-          <!-- Written Prose Content -->
-          <div class="prose">
+          <!-- Immersive Written Prose Content -->
+          <div class="prose font-normal leading-relaxed text-slate-800">
             ${renderedProse}
           </div>
 
-          <!-- Social Viral Sharing Suite -->
-          <div class="mt-16 pt-10 border-t border-slate-200">
-            <div class="text-sm font-extrabold text-slate-500 uppercase tracking-wider mb-4">Share this daily drop & drive traffic</div>
+          <!-- Consumer Viral Sharing Suite -->
+          <div class="mt-20 pt-10 border-t border-slate-200">
+            <div class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Share this dispatch with your network</div>
             <div class="flex flex-wrap items-center gap-3">
-              <button class="viral-share-btn btn bg-slate-900 text-white hover:bg-slate-800 text-xs px-4 py-2.5 rounded-xl font-extrabold flex items-center gap-2" data-type="x">
-                ${window.ApexIcons.twitter} Share on X
+              <button class="viral-share-btn btn bg-slate-900 text-white hover:bg-slate-800 text-xs px-4 py-3 rounded-xl font-black flex items-center gap-2 shadow-sm" data-type="x">
+                ${window.ApexIcons?.twitter || '𝕏'} Share on X
               </button>
-              <button class="viral-share-btn btn bg-blue-700 text-white hover:bg-blue-800 text-xs px-4 py-2.5 rounded-xl font-extrabold flex items-center gap-2" data-type="linkedin">
-                ${window.ApexIcons.linkedin} Share on LinkedIn
+              <button class="viral-share-btn btn bg-blue-700 text-white hover:bg-blue-800 text-xs px-4 py-3 rounded-xl font-black flex items-center gap-2 shadow-sm" data-type="linkedin">
+                ${window.ApexIcons?.linkedin || 'in'} Share on LinkedIn
               </button>
-              <button class="viral-share-btn btn bg-blue-600 text-white hover:bg-blue-700 text-xs px-4 py-2.5 rounded-xl font-extrabold flex items-center gap-2" data-type="facebook">
-                ${window.ApexIcons.facebook} Share on Facebook
+              <button class="viral-share-btn btn bg-blue-600 text-white hover:bg-blue-700 text-xs px-4 py-3 rounded-xl font-black flex items-center gap-2 shadow-sm" data-type="facebook">
+                ${window.ApexIcons?.facebook || 'f'} Share on Facebook
               </button>
-              <button id="btn-copy-perma" class="btn btn-secondary text-xs px-4 py-2.5 rounded-xl font-extrabold flex items-center gap-2 bg-slate-50">
-                ${window.ApexIcons.copy} Copy Permalink
+              <button id="btn-copy-perma" class="btn btn-secondary text-xs px-4 py-3 rounded-xl font-bold flex items-center gap-2 bg-slate-50 border-slate-200">
+                ${window.ApexIcons?.copy || '📋'} Copy Link
               </button>
             </div>
           </div>
 
-          <!-- Embedded Schema JSON-LD Inspector -->
-          <div class="mt-12 bg-slate-900 text-slate-300 p-6 rounded-3xl">
-            <div class="flex items-center justify-between mb-4">
-              <span class="text-xs font-extrabold uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Verified Schema.org JSON-LD Injected
-              </span>
-              <button id="toggle-schema-code" class="text-xs font-bold text-slate-400 hover:text-white underline cursor-pointer">View JSON-LD Code</button>
+          <!-- Highly Converting Post End Newsletter Box -->
+          <div class="mt-16 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 text-white p-8 sm:p-12 rounded-3xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-6 border border-slate-800">
+            <div>
+              <div class="text-xl font-black mb-1">Enjoyed this technical deep dive?</div>
+              <div class="text-xs text-indigo-200 font-medium">Join 45,000+ software engineers getting our high-traffic weekly pieces.</div>
             </div>
-            <pre id="schema-preview-box" class="hidden text-xs bg-black/50 p-4 rounded-xl overflow-x-auto text-indigo-300"><code>${window.ApexSEOEngine.generateSchema(article)}</code></pre>
+            <button id="btn-article-newsletter" class="btn btn-primary px-6 py-3.5 rounded-xl font-black text-white shadow-md whitespace-nowrap">
+              Subscribe Free
+            </button>
           </div>
 
         </article>
 
         <!-- Right Automatic Table of Contents Sidebar -->
         <aside class="w-full lg:w-80">
-          <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-md sticky top-28">
-            <h4 class="font-black text-slate-900 uppercase tracking-wider text-xs mb-4 flex items-center gap-2 pb-3 border-b border-slate-100">
-              ${window.ApexIcons.compass} Table of Contents
-            </h4>
+          <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-md sticky top-28 space-y-8">
             
-            <div class="flex flex-col gap-1 max-h-[400px] overflow-y-auto pr-2">
-              ${tocItems.length === 0 ? '<div class="text-slate-400 text-xs">No nested subheadings found.</div>' : ''}
-              ${tocItems.map(item => `
-                <a href="#${item.id}" class="toc-link text-xs ${item.level === 3 ? 'ml-4' : ''}">
-                  ${item.text}
-                </a>
-              `).join("")}
+            <div>
+              <h4 class="font-black text-slate-900 uppercase tracking-wider text-xs mb-4 flex items-center gap-2 pb-3 border-b border-slate-100">
+                ${window.ApexIcons?.compass || '🧭'} Table of Contents
+              </h4>
+              
+              <div class="flex flex-col gap-1 max-h-[380px] overflow-y-auto pr-2 font-semibold">
+                ${tocItems.length === 0 ? '<div class="text-slate-400 text-xs">No nested subheadings found.</div>' : ''}
+                ${tocItems.map(item => `
+                  <a href="#${item.id}" class="toc-link text-xs ${item.level === 3 ? 'ml-4' : ''}">
+                    ${item.text}
+                  </a>
+                `).join("")}
+              </div>
             </div>
 
-            <!-- Motivational Daily Publishing Box -->
-            <div class="mt-8 pt-6 border-t border-slate-100 bg-gradient-to-br from-indigo-50 to-purple-50 p-5 rounded-2xl border border-indigo-100">
-              <div class="font-extrabold text-indigo-900 text-sm mb-1">⚡ Daily Publishing Streak</div>
-              <p class="text-xs text-indigo-700 leading-relaxed mb-4">
-                Consistent high-quality SEO content is the key to compounding Google Search traffic.
-              </p>
-              <div class="bg-white py-2 px-3 rounded-xl font-black text-indigo-600 text-xs text-center border border-indigo-200 shadow-sm">
-                Next Drop in 14 hours
+            <!-- Consumer Related Articles Recommendation Box -->
+            <div class="pt-6 border-t border-slate-100">
+              <h4 class="font-black text-slate-900 uppercase tracking-wider text-xs mb-4 pb-2 border-b border-slate-100">
+                ⚡ Trending Guides
+              </h4>
+              <div class="space-y-4">
+                ${this.articles.filter(a => a.id !== article.id).slice(0, 2).map(rel => `
+                  <div class="group cursor-pointer" data-rel-id="${rel.id}">
+                    <div class="text-[10px] font-bold text-indigo-600 uppercase mb-0.5">${rel.category}</div>
+                    <div class="text-xs font-black text-slate-900 group-hover:text-indigo-600 transition line-clamp-2 leading-snug">
+                      ${rel.title}
+                    </div>
+                  </div>
+                `).join("")}
               </div>
             </div>
 
@@ -545,10 +653,24 @@ class ApexApplication {
 
     document.getElementById("btn-copy-perma")?.addEventListener("click", () => {
       navigator.clipboard.writeText(postUrl);
-      this.showToast("Permalink copied to clipboard!");
+      this.showToast("Link copied to clipboard!");
     });
 
-    document.querySelectorAll(".viral-share-btn").forEach(btn => {
+    document.getElementById("btn-article-newsletter")?.addEventListener("click", () => {
+      document.getElementById("newsletter-signup-box")?.scrollIntoView({ behavior: "smooth" });
+    });
+
+    articleWrapper.querySelectorAll("[data-rel-id]").forEach(el => {
+      el.addEventListener("click", () => {
+        const id = el.getAttribute("data-rel-id");
+        if (id) {
+          this.openFullArticleView(id);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      });
+    });
+
+    articleWrapper.querySelectorAll(".viral-share-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         const type = btn.getAttribute("data-type");
         const encodedUrl = encodeURIComponent(postUrl);
@@ -557,11 +679,6 @@ class ApexApplication {
         else if (type === "linkedin") window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`, "_blank");
         else if (type === "facebook") window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, "_blank");
       });
-    });
-
-    document.getElementById("toggle-schema-code")?.addEventListener("click", () => {
-      const box = document.getElementById("schema-preview-box");
-      if (box) box.classList.toggle("hidden");
     });
   }
 
