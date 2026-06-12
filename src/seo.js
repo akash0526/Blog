@@ -204,7 +204,7 @@ window.ApexSEOEngine = {
     const avgWordsPerSentence = words.length / sentences.length;
     // Simple rough estimation of syllables
     const syllables = words.reduce((acc, word) => {
-       acc += Math.max(1, word.replace(/(?:[^laeiouy]|ed|es|e)$/gi, '').match(/[aeiouy]{1,2}/gi)?.length || 1);
+      acc += Math.max(1, word.replace(/(?:[^laeiouy]|ed|es|e)$/gi, '').match(/[aeiouy]{1,2}/gi)?.length || 1);
       return acc;
     }, 0);
     const avgSyllablesPerWord = syllables / words.length;
@@ -237,18 +237,19 @@ window.ApexSEOEngine = {
   /**
    * Builds Google Search JSON-LD structured data script
    */
-  generateSchema(article) {
+  generateSchema(article, customDomain) {
     const { title, metaDescription, publishedAt, author, image } = article;
+    const domain = customDomain || (window.ApexExporter ? window.ApexExporter.getDomain() : "https://blog-liart-five-46.vercel.app");
     const schema = {
       "@context": "https://schema.org",
       "@type": "BlogPosting",
       "mainEntityOfPage": {
         "@type": "WebPage",
-        "@id": `https://apexpulse.com/blog/${article.slug}`
+        "@id": `${domain}/blog/${article.slug}`
       },
       "headline": title || "Apex Pulse Daily Dispatch",
       "description": metaDescription || "Expert software engineering and professional blog post.",
-      "image": image || "https://apexpulse.com/og-default.jpg",
+      "image": image || `${domain}/og-default.jpg`,
       "author": {
         "@type": "Person",
         "name": author?.name || "Alex Rivera",
@@ -259,7 +260,7 @@ window.ApexSEOEngine = {
         "name": "ApexSEO Pulse Studio",
         "logo": {
           "@type": "ImageObject",
-          "url": "https://apexpulse.com/logo.png"
+          "url": `${domain}/logo.png`
         }
       },
       "datePublished": publishedAt || new Date().toISOString().split('T')[0],

@@ -4,15 +4,33 @@
 ============================================= */
 
 window.ApexExporter = {
+  getDomain() {
+    try {
+      return localStorage.getItem("apex_custom_domain_v1") || "https://blog-liart-five-46.vercel.app";
+    } catch(e) {
+      return "https://blog-liart-five-46.vercel.app";
+    }
+  },
+
+  setDomain(domain) {
+    try {
+      const clean = domain.trim().replace(/\/$/, "");
+      localStorage.setItem("apex_custom_domain_v1", clean);
+      return clean;
+    } catch(e) {
+      return domain;
+    }
+  },
+
   /**
    * Generates a fully contained, pristine standalone HTML page for an article
    * Includes complete Open Graph meta tags, Schema JSON-LD, clean typography, and responsive styling.
    */
   generateStandaloneArticleHtml(article) {
     const { title, slug, category, metaDescription, publishedAt, readingTime, author, image, content } = article;
-    const domain = "https://apexpulse.com";
+    const domain = this.getDomain();
     const postUrl = `${domain}/blog/${slug}`;
-    const schemaJson = window.ApexSEOEngine.generateSchema(article);
+    const schemaJson = window.ApexSEOEngine.generateSchema(article, domain);
     
     // Parse Markdown to simple HTML for standalone export
     const renderedContent = this.parseSimpleMarkdown(content);
@@ -152,7 +170,7 @@ window.ApexExporter = {
    * Complete standard XML Sitemap Generator
    */
   generateSitemapXml(articles) {
-    const domain = "https://apexpulse.com";
+    const domain = this.getDomain();
     let urls = `<url>
     <loc>${domain}</loc>
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
@@ -185,6 +203,7 @@ window.ApexExporter = {
    * Enterprise Robots.txt Generator
    */
   generateRobotsTxt() {
+    const domain = this.getDomain();
     return `# ========================================================
 # Enterprise Robots.txt for ApexSEO Pulse Platform
 # Configured for instant indexing & AI scraper management
@@ -204,7 +223,7 @@ User-agent: ClaudeBot
 Allow: /blog/
 
 # XML Sitemap Directive
-Sitemap: https://apexpulse.com/sitemap.xml`;
+Sitemap: ${domain}/sitemap.xml`;
   },
 
   /**

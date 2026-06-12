@@ -399,7 +399,7 @@ class ApexApplication {
     articleWrapper.classList.remove("hidden");
 
     const renderedProse = window.ApexExporter.parseSimpleMarkdown(article.content);
-    const domain = "https://apexpulse.com";
+    const domain = window.ApexExporter.getDomain();
     const postUrl = `${domain}/blog/${article.slug}`;
 
     // Generate automatic Table of Contents items
@@ -716,7 +716,7 @@ class ApexApplication {
                 <div class="serp-card shadow-sm w-full">
                   <div class="serp-url">
                     <span class="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">⚡</span>
-                    https://apexpulse.com <span class="text-slate-400">&rsaquo; blog &rsaquo; <span id="serp-slug-text">${window.ApexSEOEngine.generateSlug(this.editingArticle.title)}</span></span>
+                    ${window.ApexExporter.getDomain()} <span class="text-slate-400">&rsaquo; blog &rsaquo; <span id="serp-slug-text">${window.ApexSEOEngine.generateSlug(this.editingArticle.title)}</span></span>
                   </div>
                   <a href="#" class="serp-title line-clamp-1" id="serp-title-text">${this.editingArticle.title || 'Your Click-Worthy SEO Article Headline'}</a>
                   <div class="serp-desc line-clamp-2">
@@ -1440,6 +1440,7 @@ class ApexApplication {
     const container = document.getElementById("seo-tools-container");
     if (!container) return;
 
+    const currentDomain = window.ApexExporter.getDomain();
     const sitemapCode = window.ApexExporter.generateSitemapXml(this.articles);
     const robotsCode = window.ApexExporter.generateRobotsTxt();
 
@@ -1451,6 +1452,24 @@ class ApexApplication {
             Technical SEO Infrastructure & Master Backup
           </h2>
           <p class="text-slate-500 text-sm font-semibold mt-1">Sitemap generation, Roboting rules, canonical structures & persistent database operations.</p>
+        </div>
+      </div>
+
+      <!-- Live Domain Configuration Setting -->
+      <div class="card p-6 sm:p-8 mb-8 bg-indigo-50/50 border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h3 class="text-base font-black text-indigo-950 flex items-center gap-2">
+            <span>⚡ Target Production Domain Name</span>
+          </h3>
+          <p class="text-xs text-indigo-700 font-semibold mt-0.5">
+            Configures the absolute base URL for your XML Sitemaps, Robots.txt, Open Graph meta tags, and live Schema.org JSON-LD scripts.
+          </p>
+        </div>
+        <div class="flex items-center gap-2.5 w-full sm:w-auto">
+          <input id="input-domain-setting" type="url" value="${currentDomain}" class="input text-xs font-mono font-bold w-full sm:w-72 rounded-xl py-2.5 bg-white border-indigo-200">
+          <button id="btn-save-domain" class="btn btn-primary px-5 py-2.5 text-xs font-black whitespace-nowrap rounded-xl shadow-sm">
+            Save URL
+          </button>
         </div>
       </div>
 
@@ -1564,6 +1583,15 @@ class ApexApplication {
     document.getElementById("btn-copy-robots")?.addEventListener("click", () => {
       navigator.clipboard.writeText(robotsCode);
       this.showToast("Robots.txt rules copied to clipboard!");
+    });
+
+    document.getElementById("btn-save-domain")?.addEventListener("click", () => {
+      const val = document.getElementById("input-domain-setting")?.value.trim();
+      if (val) {
+        window.ApexExporter.setDomain(val);
+        this.renderSeoToolsSuite();
+        this.showToast(`⚡ Domain successfully updated to ${val}! All sitemaps & open graph tags recalculated.`);
+      }
     });
 
     document.getElementById("btn-download-robots")?.addEventListener("click", () => {
