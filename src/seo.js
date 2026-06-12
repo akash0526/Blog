@@ -204,7 +204,7 @@ window.ApexSEOEngine = {
     const avgWordsPerSentence = words.length / sentences.length;
     // Simple rough estimation of syllables
     const syllables = words.reduce((acc, word) => {
-      acc += Math.max(1, word.replace(/(?:[^laeiouy]|ed|es|e)$/eme, '').match(/[aeiouy]{1,2}/gi)?.length || 1);
+       acc += Math.max(1, word.replace(/(?:[^laeiouy]|ed|es|e)$/gi, '').match(/[aeiouy]{1,2}/gi)?.length || 1);
       return acc;
     }, 0);
     const avgSyllablesPerWord = syllables / words.length;
