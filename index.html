@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>ApexSEO Pulse — High Output Daily Blog & Expert CMS Platform</title>
+  <meta name="description" content="An expert software engineering blog publishing and CMS platform tailored for extreme SEO, daily streaks, programmatic long-tail ranking, and flawless Core Web Vitals.">
+  <meta name="robots" content="index, follow">
+
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Production Tailwind CSS CDN (Works fully when downloaded or deployed) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Local Master Stylesheet -->
+  <link rel="stylesheet" href="./src/styles.css">
+
+  <!-- Robust Fallback Inline Styles for Sandboxed Offline Iframe Previews -->
+  <style>
+    /* Ensure beautiful layout even if external Tailwind CSS is blocked by iframe network restrictions */
+    body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: var(--text-main); margin: 0; padding: 0; }
+    .container { max-width: 1280px; margin: 0 auto; padding: 0 1.5rem; }
+    .main-header { height: 72px; background-color: var(--bg-card); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; position: sticky; top: 0; z-index: 40; }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .logo-area { display: flex; align-items: center; gap: 0.75rem; font-size: 1.25rem; font-weight: 800; text-decoration: none; color: var(--text-main); cursor: pointer; }
+    .nav-links { display: flex; align-items: center; gap: 1.5rem; }
+    .nav-link { font-weight: 600; color: var(--text-muted); cursor: pointer; text-decoration: none; padding: 0.5rem 0; font-size: 0.95rem; }
+    .nav-link:hover, .nav-link.active { color: #4f46e5; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.625rem 1.25rem; font-weight: 700; font-size: 0.95rem; border-radius: 0.75rem; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+    .btn-primary { background-color: #4f46e5; color: #fff; }
+    .btn-secondary { background-color: transparent; color: var(--text-main); border-color: var(--border-color); }
+    .btn-success { background-color: #10b981; color: #fff; }
+    .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); padding: 1.5rem; }
+    .input { width: 100%; padding: 0.75rem 1rem; font-size: 0.95rem; border: 1px solid var(--border-color); border-radius: 0.75rem; background-color: var(--bg-card); color: var(--text-main); }
+    .grid { display: grid; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-4 { gap: 1rem; }
+    .mb-8 { margin-bottom: 2rem; }
+    .py-16 { padding-top: 4rem; padding-bottom: 4rem; }
+  </style>
+</head>
+<body data-theme="light">
+
+  <!-- App Main Header -->
+  <header id="main-app-header" class="main-header shadow-sm"></header>
+
+  <!-- App Views Container -->
+  <main class="flex-1 pb-24 pt-8">
+    <div class="container">
+      
+      <!-- VIEW 1: Live Blog Frontend -->
+      <section id="view-blog-frontend" class="app-view active">
+        <!-- Frontend Multi-View Switcher -->
+        <div id="frontend-grid-view-wrapper">
+          <!-- Hero Section -->
+          <div id="frontend-hero-section"></div>
+          
+          <!-- Category & Search Bar -->
+          <div id="frontend-categories-bar"></div>
+          
+          <!-- Blog Posts Grid -->
+          <div id="frontend-blog-grid"></div>
+        </div>
+
+        <!-- Individual Full Article Container -->
+        <div id="frontend-full-article-wrapper" class="hidden"></div>
+
+        <!-- High Conversion Newsletter Section -->
+        <div id="newsletter-signup-box" class="mt-24 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-8 sm:p-16 shadow-2xl border border-slate-800 text-center relative overflow-hidden">
+          <div class="absolute -left-20 -top-20 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl"></div>
+          <div class="max-w-2xl mx-auto relative z-10">
+            <span class="bg-indigo-500/20 text-indigo-300 font-extrabold text-xs px-3.5 py-1.5 rounded-full border border-indigo-500/30 uppercase tracking-widest inline-block mb-6">
+              ⚡ Exclusive Daily Drop
+            </span>
+            <h2 class="text-3xl sm:text-5xl font-black tracking-tight mb-4">Join 45,000+ Expert Engineers</h2>
+            <p class="text-slate-300 text-base sm:text-lg mb-8 leading-relaxed">
+              Get our definitive software engineering and technical SEO articles delivered straight to your inbox daily. Zero fluff, absolute industry dominance.
+            </p>
+            <form id="newsletter-form" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+              <input type="email" placeholder="alex.rivera@example.com" required class="input px-5 py-3.5 rounded-2xl bg-white/10 border-slate-700 text-white placeholder-slate-400 focus:border-indigo-500 font-bold text-sm">
+              <button type="submit" class="btn btn-primary px-8 py-3.5 rounded-2xl font-black whitespace-nowrap shadow-lg shadow-indigo-600/30">
+                Subscribe Live
+              </button>
+            </form>
+            <div class="text-[11px] font-bold text-slate-500 mt-4">No spam ever. Unsubscribe in one click.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: Expert Writer Studio & Real-Time Live Audit -->
+      <section id="view-writer-studio" class="app-view">
+        <div id="writer-studio-container"></div>
+      </section>
+
+      <!-- VIEW 3: Content Kanban Calendar -->
+      <section id="view-kanban-calendar" class="app-view">
+        <div id="kanban-calendar-container"></div>
+      </section>
+
+      <!-- VIEW 4: Traffic & SEO Analytics Dashboard -->
+      <section id="view-analytics-dashboard" class="app-view">
+        <div id="analytics-dashboard-container"></div>
+      </section>
+
+      <!-- VIEW 5: Technical SEO Suite & Exporter -->
+      <section id="view-seo-tools" class="app-view">
+        <div id="seo-tools-container"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Premium Main Footer -->
+  <footer class="bg-slate-900 text-slate-400 py-16 border-t border-slate-800 mt-auto">
+    <div class="container flex flex-col md:flex-row items-center justify-between gap-8">
+      <div class="flex items-center gap-3 text-white font-extrabold text-lg">
+        <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white text-xs flex items-center justify-center font-black">⚡</span>
+        ApexSEO Pulse Platform
+      </div>
+      
+      <div class="flex flex-wrap items-center gap-6 text-sm font-semibold text-slate-400">
+        <a href="#" class="hover:text-white transition">Privacy Policy</a>
+        <a href="#" class="hover:text-white transition">Terms of Service</a>
+        <a href="#" class="hover:text-white transition">XML Sitemap API</a>
+        <a href="#" class="hover:text-white transition">Indexing Engine</a>
+      </div>
+
+      <div class="text-xs text-slate-500 font-bold">
+        © 2026 ApexSEO Pulse Platform. Built by Principal Software Engineers.
+      </div>
+    </div>
+  </footer>
+
+  <!-- Modular Expert Application Scripts -->
+  <script src="./src/icons.js"></script>
+  <script src="./src/data.js"></script>
+  <script src="./src/seo.js"></script>
+  <script src="./src/exporter.js"></script>
+  <script src="./src/app.js"></script>
+
+  <script>
+    document.getElementById("newsletter-form")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      window.ApexPulseApp.showToast("⚡ Welcome to the Daily Drop! You are officially subscribed.");
+      e.target.reset();
+    });
+  </script>
+
+</body>
+</html>
