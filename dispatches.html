@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Technical Master Meta Tags -->
+  <title>Apex Pulse Magazine — Elite Engineering & Technical Dispatches</title>
+  <meta name="description" content="An elite developer magazine and highly authoritative publication covering autonomous AI loops, real-time WebSockets, programmatic JAMstack velocity, and PageRank engineering.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  
+  <!-- Inter & Tailwind -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Base UI Helpers -->
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-indigo-500 selection:text-white antialiased">
+
+  <!-- Minimal Magazine Navigation -->
+  <header class="h-24 border-b border-slate-800 bg-slate-900/90 backdrop-blur-xl sticky top-0 z-50 transition">
+    <div class="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
+      
+      <a href="./index.html" class="flex items-center gap-3 text-2xl font-black tracking-tight text-white group cursor-pointer">
+        <span class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 text-white flex items-center justify-center text-lg font-black shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition duration-300">⚡</span>
+        <span>Apex<span class="text-indigo-400">Magazine</span></span>
+      </a>
+
+      <!-- Navigation Matrix -->
+      <nav class="hidden lg:flex items-center gap-10 text-sm font-extrabold text-slate-300">
+        <a href="#featured" class="hover:text-indigo-400 transition">Spotlight Dispatch</a>
+        <a href="#editorial-grid" class="hover:text-indigo-400 transition">Technical Vault</a>
+        <a href="#topics" class="hover:text-indigo-400 transition">Topic Matrices</a>
+      </nav>
+
+      <div class="flex items-center gap-4">
+        <a href="./index.html" class="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-black px-4 py-3 rounded-xl border border-slate-700 transition shadow-sm cursor-pointer">
+          ⚙️ Switch to CMS Padlock
+        </a>
+        <button id="btn-theme-mag" class="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer transition">☀️</button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Magazine Immersive Body -->
+  <main class="flex-1 pb-24">
+    
+    <!-- Hero Spotlight Section -->
+    <section id="featured" class="py-12 px-6 max-w-7xl mx-auto">
+      
+      <div class="mb-6 flex items-center justify-between border-b border-slate-800 pb-4">
+        <span class="text-xs font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-ping"></span> EDITORIAL SPOTLIGHT OF THE WEEK
+        </span>
+        <span class="text-xs font-bold text-slate-500 font-mono">ISSUE #26 — LOCAL NEPAL TIMEZONE</span>
+      </div>
+
+      <!-- Massive Featured Editorial Spotlight Card -->
+      <div class="relative bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950 rounded-3xl border border-slate-700/80 overflow-hidden shadow-2xl grid grid-cols-1 lg:grid-cols-12 gap-0 group transition duration-500 hover:border-indigo-500/80">
+        
+        <!-- Spotlight Media (7 Cols) -->
+        <div class="lg:col-span-7 h-[400px] lg:h-[540px] bg-cover bg-center relative overflow-hidden" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80');">
+          <div class="absolute inset-0 bg-gradient-to-t lg:bg-gradient-to-r from-slate-900 lg:from-slate-900/40 via-transparent to-transparent"></div>
+          
+          <div class="absolute top-6 left-6 bg-indigo-600 text-white text-[11px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest shadow-lg">
+            ⚡ Deep Tech & AI Loops
+          </div>
+        </div>
+
+        <!-- Spotlight Content Text (5 Cols) -->
+        <div class="lg:col-span-5 p-8 lg:p-12 flex flex-col justify-between flex-1 z-10 bg-slate-900/90 lg:bg-transparent">
+          <div>
+            <div class="flex items-center gap-3 text-xs font-bold text-slate-400 mb-4 font-mono">
+              <span>June 12, 2026</span>
+              <span>•</span>
+              <span class="text-indigo-300 font-bold flex items-center gap-1">👁️ 1,267 Verified Reads</span>
+            </div>
+
+            <h2 class="text-3xl lg:text-4xl font-black text-white leading-tight tracking-tight mb-6 group-hover:text-indigo-400 transition duration-300">
+              Building a Fully Autonomous AI Agent with WebSockets in 2026
+            </h2>
+
+            <p class="text-slate-300 text-sm lg:text-base leading-relaxed mb-8 line-clamp-4 font-normal">
+              Move past simple chatbots. Here is our expert architectural deep dive into orchestrating real-time, bi-directional cognitive workers over stable duplex WebSockets.
+            </p>
+          </div>
+
+          <div class="pt-6 border-t border-slate-800/80 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80" class="w-10 h-10 rounded-full object-cover border-2 border-indigo-500">
+              <div>
+                <div class="text-xs font-black text-white">Alex Rivera</div>
+                <div class="text-[10px] text-indigo-400 font-bold">Principal Systems Architect</div>
+              </div>
+            </div>
+            
+            <a href="./blog/building-fully-autonomous-ai-agent-websockets-2026/index.html" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black px-5 py-3 rounded-xl transition transform hover:translate-x-1 shadow-md cursor-pointer">
+              Read Deep Dive &rarr;
+            </a>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- Magazine Editorial Grid Hub -->
+    <section id="editorial-grid" class="py-16 px-6 max-w-7xl mx-auto">
+      
+      <div class="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-800 pb-6">
+        <div>
+          <h3 class="text-3xl font-black text-white tracking-tight flex items-center gap-3">
+            <span>📚 Technical Dispatches Vault</span>
+          </h3>
+          <p class="text-slate-400 text-sm mt-1 font-medium">Exhaustive software engineering frameworks, Jamstack site speed benchmarks, and long-tail SEO execution models.</p>
+        </div>
+        
+        <!-- Filter Matrix -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
+          <button class="px-4 py-2 bg-indigo-600 text-white font-black text-xs rounded-xl uppercase tracking-wider">⚡ All Vault</button>
+          <button class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl uppercase tracking-wider transition">Search AI</button>
+          <button class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl uppercase tracking-wider transition">Programmatic</button>
+          <button class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl uppercase tracking-wider transition">Web Vitals</button>
+        </div>
+      </div>
+
+      <!-- Asymmetrical Editorial Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        
+        <!-- Card 1 -->
+        <div class="bg-slate-800/50 border border-slate-800 rounded-3xl overflow-hidden flex flex-col h-full hover:border-indigo-500 transition duration-300 shadow-xl group">
+          <div class="h-60 bg-cover bg-center relative overflow-hidden" style="background-image: url('https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80');">
+            <div class="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase text-indigo-400 tracking-wider">
+              Startups & Growth
+            </div>
+            <div class="absolute bottom-3 right-3 bg-emerald-500 text-slate-950 font-black text-[10px] px-2.5 py-1 rounded-full">
+              ⚡ 96 SEO Status
+            </div>
+          </div>
+          
+          <div class="p-8 flex flex-col flex-1 justify-between space-y-6">
+            <div>
+              <div class="flex items-center gap-2 text-[11px] font-mono font-bold text-slate-400 mb-2">
+                <span>June 11, 2026</span> • <span>7 min read</span> • <span class="text-indigo-400">28,411 hits</span>
+              </div>
+              <h4 class="text-2xl font-black text-white leading-snug group-hover:text-indigo-400 transition duration-200">
+                Programmatic SEO: Scaling From 1,000 to 1,000,000 Monthly Pageviews
+              </h4>
+              <p class="text-slate-300 text-sm leading-relaxed mt-3 font-normal line-clamp-3">
+                Discover how expert software engineers use automated landing page templates and database mapping to capture massive long-tail search volume.
+              </p>
+            </div>
+
+            <div class="pt-6 border-t border-slate-800 flex items-center justify-between">
+              <span class="text-xs font-extrabold text-slate-400">Marcus Vance</span>
+              <a href="./blog/programmatic-seo-scaling-monthly-pageviews/index.html" class="inline-flex items-center gap-1.5 text-xs font-black text-indigo-400 group-hover:underline">
+                Read Dispatch &rarr;
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="bg-slate-800/50 border border-slate-800 rounded-3xl overflow-hidden flex flex-col h-full hover:border-indigo-500 transition duration-300 shadow-xl group">
+          <div class="h-60 bg-cover bg-center relative overflow-hidden" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80');">
+            <div class="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase text-indigo-400 tracking-wider">
+              SEO & Search Strategy
+            </div>
+            <div class="absolute bottom-3 right-3 bg-emerald-500 text-slate-950 font-black text-[10px] px-2.5 py-1 rounded-full">
+              ⚡ 99 SEO Status
+            </div>
+          </div>
+          
+          <div class="p-8 flex flex-col flex-1 justify-between space-y-6">
+            <div>
+              <div class="flex items-center gap-2 text-[11px] font-mono font-bold text-slate-400 mb-2">
+                <span>June 12, 2026</span> • <span>5 min read</span> • <span class="text-indigo-400">14,209 hits</span>
+              </div>
+              <h4 class="text-2xl font-black text-white leading-snug group-hover:text-indigo-400 transition duration-200">
+                How to Write Keyword Clusters That Dominate AI Search Engines
+              </h4>
+              <p class="text-slate-300 text-sm leading-relaxed mt-3 font-normal line-clamp-3">
+                Traditional keyword stuffing is entirely dead. Master Topical Authority and entity building for Google SGE, SearchGPT, and modern AI parsers.
+              </p>
+            </div>
+
+            <div class="pt-6 border-t border-slate-800 flex items-center justify-between">
+              <span class="text-xs font-extrabold text-slate-400">Alex Rivera</span>
+              <a href="./blog/how-to-write-keyword-clusters-dominate-ai-search-engines/index.html" class="inline-flex items-center gap-1.5 text-xs font-black text-indigo-400 group-hover:underline">
+                Read Dispatch &rarr;
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="bg-slate-800/50 border border-slate-800 rounded-3xl overflow-hidden flex flex-col h-full hover:border-indigo-500 transition duration-300 shadow-xl group">
+          <div class="h-60 bg-cover bg-center relative overflow-hidden" style="background-image: url('https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80');">
+            <div class="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase text-indigo-400 tracking-wider">
+              Tech & Infrastructure
+            </div>
+            <div class="absolute bottom-3 right-3 bg-emerald-500 text-slate-950 font-black text-[10px] px-2.5 py-1 rounded-full">
+              ⚡ 98 SEO Status
+            </div>
+          </div>
+          
+          <div class="p-8 flex flex-col flex-1 justify-between space-y-6">
+            <div>
+              <div class="flex items-center gap-2 text-[11px] font-mono font-bold text-slate-400 mb-2">
+                <span>June 10, 2026</span> • <span>4 min read</span> • <span class="text-indigo-400">19,850 hits</span>
+              </div>
+              <h4 class="text-2xl font-black text-white leading-snug group-hover:text-indigo-400 transition duration-200">
+                The Ultimate Core Web Vitals Optimization Guide for 2026
+              </h4>
+              <p class="text-slate-300 text-sm leading-relaxed mt-3 font-normal line-clamp-3">
+                Google PageSpeed ranking algorithms mandate strict client responsiveness. Here is a performance staff engineer's deep dive into resolving LCP, INP, and CLS.
+              </p>
+            </div>
+
+            <div class="pt-6 border-t border-slate-800 flex items-center justify-between">
+              <span class="text-xs font-extrabold text-slate-400">Sarah Lin</span>
+              <a href="./blog/ultimate-core-web-vitals-optimization-guide-2026/index.html" class="inline-flex items-center gap-1.5 text-xs font-black text-indigo-400 group-hover:underline">
+                Read Dispatch &rarr;
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- Newsletter CTA Hub -->
+    <section class="py-16 px-6 max-w-5xl mx-auto">
+      <div class="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 rounded-3xl p-10 sm:p-16 border border-slate-800 shadow-2xl text-center relative overflow-hidden">
+        <div class="absolute -left-20 -top-20 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl"></div>
+        <div class="max-w-xl mx-auto relative z-10 space-y-6">
+          <span class="bg-indigo-500/20 text-indigo-300 font-extrabold text-xs px-3.5 py-1.5 rounded-full border border-indigo-500/30 uppercase tracking-widest inline-block">
+            ⚡ Definitive Industry Intelligence
+          </span>
+          <h3 class="text-3xl sm:text-5xl font-black tracking-tight text-white">Subscribe to Magazine Drops</h3>
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+            Get our latest long-form technical breakdowns and high-traffic JAMstack methodologies delivered to your inbox every Friday.
+          </p>
+          <form class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto pt-2">
+            <input type="email" placeholder="software.engineer@example.com" required class="input px-5 py-3.5 rounded-2xl bg-white/10 border-slate-700 text-white placeholder-slate-400 focus:border-indigo-500 font-bold text-sm">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-2xl font-black whitespace-nowrap shadow-lg transition">
+              Subscribe Payout
+            </button>
+          </form>
+          <div class="text-[11px] font-bold text-slate-500">Zero spam. Pure architectural signal. Payout ready.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="py-12 bg-slate-950 border-t border-slate-800/80 text-center text-xs font-bold text-slate-500">
+    <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2 text-white font-black text-sm">
+        <span>⚡ Apex Pulse Technical Magazine</span>
+      </div>
+      <div>
+        © 2026 Apex Pulse Platform. Built with absolute JAMstack rigour.
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("btn-theme-mag")?.addEventListener("click", () => {
+      document.documentElement.classList.toggle("dark");
+      document.getElementById("btn-theme-mag").innerHTML = document.documentElement.classList.contains("dark") ? "🌙" : "☀️";
+    });
+  </script>
+</body>
+</html>
