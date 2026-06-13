@@ -229,10 +229,10 @@ class ApexApplication {
           
           <!-- Desktop Nav -->
           <nav class="nav-links hidden md:flex items-center gap-8 font-extrabold text-sm text-slate-600 dark:text-slate-300">
-            <a class="nav-link active hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer" data-view="blog-frontend">Explore Dispatches</a>
-            <a class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="Tech & AI">Tech & AI</a>
-            <a class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="Startups & Growth">Startups & Growth</a>
-            <a class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="SEO & Search">SEO Strategy</a>
+            <a href="/" class="nav-link active hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer" data-view="blog-frontend">Explore Dispatches</a>
+            <a href="/categories/tech-ai" class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="Tech & AI">Tech & AI</a>
+            <a href="/categories/startups-growth" class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="Startups & Growth">Startups & Growth</a>
+            <a href="/categories/seo-strategy" class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="SEO & Search">SEO Strategy</a>
           </nav>
           
           <div class="flex items-center gap-2 sm:gap-3">
@@ -255,10 +255,10 @@ class ApexApplication {
 
         <!-- Mobile Drawer Drawer -->
         <div id="mobile-drawer-box" class="md:hidden hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-6 shadow-2xl space-y-4 font-bold text-sm text-slate-800 dark:text-slate-200 animate-slideIn">
-          <a class="block py-2 nav-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-view="blog-frontend">Explore Dispatches</a>
-          <a class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="Tech & AI">Tech & AI</a>
-          <a class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="Startups & Growth">Startups & Growth</a>
-          <a class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="SEO & Search">SEO Strategy</a>
+          <a href="/" class="block py-2 nav-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-view="blog-frontend">Explore Dispatches</a>
+          <a href="/categories/tech-ai" class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="Tech & AI">Tech & AI</a>
+          <a href="/categories/startups-growth" class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="Startups & Growth">Startups & Growth</a>
+          <a href="/categories/seo-strategy" class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="SEO & Search">SEO Strategy</a>
           <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3">
             <button id="cta-drawer-newsletter" class="btn btn-primary w-full py-3 rounded-xl font-black text-xs">
               Join 45k+ Engineers
@@ -511,7 +511,7 @@ class ApexApplication {
     grid.innerHTML = `
       <div class="article-grid col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         ${filtered.map(art => `
-          <div class="card article-card card-hover cursor-pointer flex flex-col h-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-lg transition group" data-id="${art.id}">
+          <a href="/blog/${art.slug}" class="card article-card card-hover cursor-pointer flex flex-col h-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-lg transition group block text-left" data-id="${art.id}">
             
             <div class="h-56 bg-slate-100 dark:bg-slate-800 bg-cover bg-center relative overflow-hidden flex-shrink-0" style="background-image: url('${art.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80'}');">
               <div class="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300"></div>
@@ -548,7 +548,7 @@ class ApexApplication {
 
               <div class="flex items-center justify-between pt-5 border-t border-slate-100 dark:border-slate-800/80">
                 <div class="flex items-center gap-3">
-                  <img src="${art.author?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80'}" class="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700">
+                  <img src="${art.author?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80'}" alt="${art.author?.name || 'Alex Rivera'}" width="36" height="36" class="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700 flex-shrink-0">
                   <span class="text-xs font-extrabold text-slate-800 dark:text-slate-200">${art.author?.name || 'Alex Rivera'}</span>
                 </div>
                 <span class="text-xs font-black text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition flex items-center gap-1">
@@ -557,13 +557,14 @@ class ApexApplication {
               </div>
             </div>
 
-          </div>
+          </a>
         `).join("")}
       </div>
     `;
 
     grid.querySelectorAll(".article-card").forEach(card => {
-      card.addEventListener("click", () => {
+      card.addEventListener("click", (e) => {
+        e.preventDefault();
         const id = card.getAttribute("data-id");
         this.openFullArticleView(id);
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -646,7 +647,7 @@ class ApexApplication {
 
           <!-- Professional Author Bio Bar -->
           <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 py-6 border-y border-slate-100 dark:border-slate-800 mb-12 bg-slate-50 dark:bg-slate-800/60 px-8 rounded-2xl">
-            <img src="${article.author?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80'}" class="w-14 h-14 rounded-full object-cover shadow-md border-2 border-white dark:border-slate-700">
+            <img src="${article.author?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80'}" alt="${article.author?.name || 'Alex Rivera'}" width="56" height="56" class="w-14 h-14 rounded-full object-cover shadow-md border-2 border-white dark:border-slate-700 flex-shrink-0">
             <div>
               <div class="font-black text-slate-900 dark:text-white text-base">${article.author?.name || 'Alex Rivera'}</div>
               <div class="text-xs font-bold text-indigo-600 dark:text-indigo-400">${article.author?.role || 'Principal Software Engineer'}</div>
