@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /private-drafts/
+Disallow: /api/
+
+# Explicit instructions for AI web crawlers (ChatGPT & Claude)
+User-agent: GPTBot
+Allow: /blog/
+
+User-agent: ClaudeBot
+Allow: /blog/
+
+# XML Sitemap Directive
+Sitemap: https://blog-liart-five-46.vercel.app/sitemap.xml
