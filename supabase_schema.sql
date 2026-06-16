@@ -47,7 +47,7 @@ create table public.articles (
     seo_score integer not null default 85,
     pageviews integer not null default 1,
     status article_status default 'in_review'::article_status not null, -- Default to HITL Review Queue
-    author_id uuid references public.authors(id) not null,
+    author_id uuid references public.authors(id), -- Optional foreign key for serverless AI drops
     published_at date not null default current_date,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null

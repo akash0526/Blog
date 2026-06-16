@@ -178,7 +178,7 @@ def push_to_supabase_cloud(article_obj):
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
-        "Prefer": "return=representation",
+        "Prefer": "return=minimal",
         "User-Agent": "ApexPulse-Cloud-Autopilot-Worker/1.0"
     }
     
