@@ -2,15 +2,21 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/blog", "destination": "/index.html" },
-    { "source": "/blog/:slug*", "destination": "/index.html" },
-    { "source": "/categories/:cat*", "destination": "/index.html" },
-    { "source": "/admin", "destination": "/index.html" },
-    { "source": "/login", "destination": "/index.html" },
-    { "source": "/about", "destination": "/index.html" },
-    { "source": "/contact", "destination": "/index.html" },
-    { "source": "/privacy", "destination": "/index.html" },
-    { "source": "/terms", "destination": "/index.html" },
-    { "source": "/daily", "destination": "/index.html" }
+    {
+      "source": "/blog",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/blog/:slug*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/categories/:cat*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/daily",
+      "destination": "/index.html"
+    }
   ]
 }

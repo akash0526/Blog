@@ -38,50 +38,47 @@ class ApexApplication {
   }
 
   init() {
-    const startApp = () => {
+    const startApp = async () => {
+      // Universal Live Cloud Synchronization! If Supabase is active, fetch live real-world published dispatches straight from PostgreSQL!
       try {
-        if (!Array.isArray(this.articles)) this.articles = window.ApexStateManager.getArticles();
-        if (!Array.isArray(this.kanbanCards)) this.kanbanCards = window.ApexStateManager.getKanban();
-
-        this.renderNavigation();
-        this.bindEvents();
-        
-        // Auto-detect incoming deep links for specific blog articles & Core user pages
-        const path = window.location.pathname.toLowerCase();
-        const hash = window.location.hash.toLowerCase();
-        
-        let targetSlug = null;
-        if (path.includes("/blog/")) {
-          targetSlug = path.split("/blog/")[1]?.replace(/\/$/, "");
-        } else if (hash.includes("/blog/")) {
-          targetSlug = hash.split("/blog/")[1]?.replace(/\/$/, "");
-        }
-
-        // Check for standalone Core view requests
-        if (path.includes("/about") || hash.includes("about")) {
-          this.switchView("about");
-        } else if (path.includes("/contact") || hash.includes("contact")) {
-          this.switchView("contact");
-        } else if (path.includes("/privacy") || hash.includes("privacy")) {
-          this.switchView("privacy");
-        } else if (path.includes("/terms") || hash.includes("terms")) {
-          this.switchView("terms");
-        } else if (path.includes("/admin") || path.includes("/login") || hash.includes("admin") || hash.includes("login") || hash.includes("cms")) {
-          this.switchView("writer-studio"); // Rout bouncer automatically opens proper Secure Login Gateway
-        } else if (targetSlug) {
-          this.switchView("blog-frontend");
-          const artObj = this.articles.find(a => a.slug === targetSlug || a.id === targetSlug);
-          if (artObj) {
-            setTimeout(() => {
-              this.openFullArticleView(artObj.id);
-            }, 50);
+        if (window.ApexSupabase?.isConnected()) {
+          const livePieces = await window.ApexSupabase?.fetchLiveArticles();
+          if (livePieces && livePieces.length > 0) {
+            this.articles = livePieces;
           }
-        } else {
-          this.switchView("blog-frontend");
         }
-      } catch(initErr) {
-        console.error("Apex Startup Diagnostic Error:", initErr);
-        document.body.innerHTML += `<div class="p-6 bg-red-950 text-white font-mono text-xs fixed bottom-0 left-0 w-full z-50 border-t-4 border-red-500">🚨 Diagnostic Startup System Report: ${initErr.message} (${initErr.stack})</div>`;
+      } catch(cloudErr) {
+        console.warn("Cloud Fetch Notice: Using persistent sandboxed workspace database memory.");
+      }
+
+      this.renderNavigation();
+      this.bindEvents();
+      
+      // Auto-detect incoming deep links for specific blog articles (Pathname or Hash)
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      
+      let targetSlug = null;
+      if (path.includes("/blog/")) {
+        targetSlug = path.split("/blog/")[1]?.replace(/\/$/, "");
+      } else if (hash.includes("/blog/")) {
+        targetSlug = hash.split("/blog/")[1]?.replace(/\/$/, "");
+      }
+
+      this.switchView("blog-frontend");
+
+      if (hash.includes("cms")) {
+        this.isAdminMode = true;
+        this.renderNavigation();
+        this.switchView("writer-studio");
+        this.showToast("⚡ Auto-Padlock Unlocked: Direct entry into Expert Author Studio & CMS!");
+      } else if (targetSlug) {
+        const artObj = this.articles.find(a => a.slug === targetSlug || a.id === targetSlug);
+        if (artObj) {
+          setTimeout(() => {
+            this.openFullArticleView(artObj.id);
+          }, 50);
+        }
       }
     };
 
@@ -151,55 +148,9 @@ class ApexApplication {
         this.switchView("blog-frontend");
       }
     });
-
-    // Core Working Contact Form Handler
-    document.getElementById("contact-us-form")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.showToast("🎉 Message successfully dispatched! Our engineering staff will evaluate your scenario and respond within 12 hours.");
-      e.target.reset();
-    });
-
-    // 🚨 PROFESSIONAL EDGE DIAGNOSTIC TELEMETRY & LIVE ERROR MONITORING
-    window.addEventListener("error", (event) => {
-      this.recordDiagnosticTelemetry({
-        type: "JavaScript Runtime Error",
-        message: event.message,
-        source: event.filename,
-        line: event.lineno,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    window.addEventListener("unhandledrejection", (event) => {
-      this.recordDiagnosticTelemetry({
-        type: "Async API Webhook Rejection",
-        message: event.reason?.message || "Promise Rejected",
-        source: "Async Webhook",
-        timestamp: new Date().toISOString()
-      });
-    });
-  }
-
-  recordDiagnosticTelemetry(errObj) {
-    try {
-      const logs = JSON.parse(localStorage.getItem("apex_telemetry_diagnostics_v1") || "[]");
-      logs.unshift(errObj);
-      if (logs.length > 25) logs.pop(); // Maintain efficient pristine rolling array
-      localStorage.setItem("apex_telemetry_diagnostics_v1", JSON.stringify(logs));
-      console.warn("🚨 [Diagnostic Telemetry Logged]:", errObj.message);
-    } catch(e) {}
   }
 
   switchView(viewName) {
-    // 🛡️ SERVER-SIDE ROUTE PROTECTION BOUNCER
-    const adminViews = ["writer-studio", "kanban-calendar", "analytics-dashboard", "seo-tools"];
-    if (adminViews.includes(viewName)) {
-      if (!window.ApexSupabase?.isAuthenticated()) {
-        this.openLoginModal(viewName);
-        return;
-      }
-    }
-
     this.currentView = viewName;
     
     // Hide all views
@@ -282,74 +233,6 @@ class ApexApplication {
   }
 
   /* ==========================================
-     PROPER CMS AUTHENTICATION MODAL
-  ============================================= */
-  openLoginModal(targetView) {
-    let modal = document.getElementById("cms-login-modal");
-    if (modal) modal.remove();
-
-    modal = document.createElement("div");
-    modal.id = "cms-login-modal";
-    modal.className = "fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-slideIn";
-    modal.innerHTML = `
-      <div class="bg-slate-900 text-white rounded-3xl border border-slate-800 p-8 sm:p-12 shadow-2xl max-w-md w-full space-y-6">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-          <h3 class="text-xl font-black text-white flex items-center gap-2.5">
-            <span class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xs font-black">⚡</span>
-            Apex CMS Gateway
-          </h3>
-          <button id="btn-login-close" class="text-slate-400 hover:text-white font-bold text-lg cursor-pointer">&times;</button>
-        </div>
-
-        <p class="text-xs text-slate-300 leading-relaxed">
-          Authorized staff contributors only. Enter your CMS credentials to unlock your writing studio and telemetry database.
-        </p>
-
-        <form id="cms-login-form" class="space-y-4">
-          <div>
-            <label class="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1.5">Authorized Email</label>
-            <input id="login-email" type="email" placeholder="author@apexpulse.com" required value="akash@apexpulse.com" class="input text-xs font-mono font-bold bg-slate-950 border-slate-800 text-white py-3 rounded-xl focus:border-indigo-500">
-          </div>
-          <div>
-            <label class="block text-xs font-black uppercase tracking-wider text-slate-300 mb-1.5">Master Password</label>
-            <input id="login-pass" type="password" placeholder="••••••••" required value="apex2026" class="input text-xs font-mono font-bold bg-slate-950 border-slate-800 text-white py-3 rounded-xl focus:border-indigo-500">
-          </div>
-          
-          <button type="submit" class="btn btn-primary w-full py-3.5 rounded-xl font-black text-xs shadow-lg shadow-indigo-600/30 transform hover:scale-105 transition cursor-pointer">
-            ⚡ Secure Padlock Authentication
-          </button>
-        </form>
-
-        <div class="text-[11px] text-center font-bold text-slate-500 pt-2 border-t border-slate-800">
-          Sandboxed offline mode accepts default credentials.
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    const closeEl = () => modal.remove();
-    document.getElementById("btn-login-close")?.addEventListener("click", closeEl);
-
-    document.getElementById("cms-login-form")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const email = document.getElementById("login-email")?.value;
-      const pass = document.getElementById("login-pass")?.value;
-      
-      try {
-        await window.ApexSupabase?.signIn(email, pass);
-        closeEl();
-        this.isAdminMode = true;
-        this.renderNavigation();
-        this.showToast("🎉 Session Successfully Authenticated! Padlock Unlocked.");
-        this.switchView(targetView || "writer-studio");
-      } catch(err) {
-        this.showToast(err.message || "Login failed!", "warning");
-      }
-    });
-  }
-
-  /* ==========================================
      VIEW 1: FRONTEND LIVE BLOG
   ============================================= */
   renderNavigation() {
@@ -368,12 +251,11 @@ class ApexApplication {
           </a>
           
           <!-- Desktop Nav -->
-          <nav class="nav-links hidden md:flex items-center gap-7 font-extrabold text-sm text-slate-600 dark:text-slate-300">
+          <nav class="nav-links hidden md:flex items-center gap-8 font-extrabold text-sm text-slate-600 dark:text-slate-300">
             <a href="/" class="nav-link active hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer" data-view="blog-frontend">Explore Dispatches</a>
             <a href="/categories/tech-ai" class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="Tech & AI">Tech & AI</a>
             <a href="/categories/startups-growth" class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="Startups & Growth">Startups & Growth</a>
-            <a href="/about" class="nav-link hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer" data-view="about">About Us</a>
-            <a href="/contact" class="nav-link hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer" data-view="contact">Contact</a>
+            <a href="/categories/seo-strategy" class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="SEO & Search">SEO Strategy</a>
           </nav>
           
           <div class="flex items-center gap-2 sm:gap-3">
@@ -399,8 +281,7 @@ class ApexApplication {
           <a href="/" class="block py-2 nav-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-view="blog-frontend">Explore Dispatches</a>
           <a href="/categories/tech-ai" class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="Tech & AI">Tech & AI</a>
           <a href="/categories/startups-growth" class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="Startups & Growth">Startups & Growth</a>
-          <a href="/about" class="block py-2 nav-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-view="about">About Us</a>
-          <a href="/contact" class="block py-2 nav-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-view="contact">Contact</a>
+          <a href="/categories/seo-strategy" class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="SEO & Search">SEO Strategy</a>
           <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3">
             <button id="cta-drawer-newsletter" class="btn btn-primary w-full py-3 rounded-xl font-black text-xs">
               Join 45k+ Engineers
@@ -434,7 +315,10 @@ class ApexApplication {
       });
 
       document.getElementById("btn-unlock-cms")?.addEventListener("click", () => {
+        this.isAdminMode = true;
+        this.renderNavigation();
         this.switchView("writer-studio");
+        this.showToast("⚡ Master Padlock Unlocked: Switched to Expert Author Studio & CMS!");
       });
 
     } else {
@@ -457,12 +341,9 @@ class ApexApplication {
             <a class="nav-link hover:text-emerald-400 transition cursor-pointer whitespace-nowrap" data-view="seo-tools">⚡ SEO Vault</a>
           </nav>
           
-          <div class="flex items-center gap-2 flex-shrink-0">
-            <button id="btn-lock-cms" class="btn bg-slate-800 text-slate-200 hover:text-white px-3 py-2 rounded-xl font-black text-xs border border-slate-700 whitespace-nowrap shadow-sm cursor-pointer" title="Switch back to clean Visitor reading mode">
+          <div class="flex items-center gap-3 flex-shrink-0">
+            <button id="btn-lock-cms" class="btn bg-slate-800 text-slate-200 hover:text-white px-4 py-2 rounded-xl font-black text-xs border border-slate-700 whitespace-nowrap shadow-sm" title="Switch back to clean Visitor reading mode">
               🔒 Lock Mode
-            </button>
-            <button id="btn-cms-signout" class="btn bg-rose-950/80 text-rose-300 hover:text-white px-3 py-2 rounded-xl font-black text-xs border border-rose-800 whitespace-nowrap shadow-sm cursor-pointer" title="Sign out of CMS entirely">
-              🚪 Sign Out
             </button>
             <button id="btn-cms-mobile-menu" class="lg:hidden p-2 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 cursor-pointer">
               ☰
@@ -479,14 +360,6 @@ class ApexApplication {
           <a class="block py-2 nav-link hover:text-emerald-400 cursor-pointer" data-view="seo-tools">⚡ SEO Vault</a>
         </div>
       `;
-
-      document.getElementById("btn-cms-signout")?.addEventListener("click", () => {
-        window.ApexSupabase?.disconnect();
-        this.isAdminMode = false;
-        this.renderNavigation();
-        this.switchView("blog-frontend");
-        this.showToast("🚪 Signed out successfully! Secure session terminated.");
-      });
 
       document.getElementById("btn-cms-mobile-menu")?.addEventListener("click", () => {
         document.getElementById("cms-mobile-drawer")?.classList.toggle("hidden");
@@ -940,21 +813,21 @@ class ApexApplication {
   ============================================= */
   startNewArticle() {
     this.editingArticle = {
-      id: "post-" + Date.now(),
+      id: "draft-" + Date.now(),
       title: "",
       slug: "",
-      category: "Tech & AI",
+      category: "SEO & Search",
       targetKeyword: "",
       secondaryKeywords: "",
       metaDescription: "",
       publishedAt: new Date().toISOString().split("T")[0],
       author: {
         name: "Alex Rivera",
-        role: "Principal Systems Engineer",
+        role: "Principal Software Engineer",
         avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80"
       },
       image: "",
-      content: "# Your Awesome Technical Deep Dive\n\nWrite your introductory overview paragraph here. Make sure to naturally naturally embed your target query inside your overview paragraph and subheadings...\n\n---\n\n## 1. Architectural Telemetry & Performance Benchmarks\nExplain the exact computational challenge or scalability bottleneck your readers face.\n",
+      content: "# Your Awesome Title\n\nWrite your introductory paragraph here. Make sure to embed your primary keyword right away to establish instant topical intent...",
       seoScore: 50
     };
     this.switchView("writer-studio");
@@ -969,7 +842,7 @@ class ApexApplication {
     const container = document.getElementById("writer-studio-container");
     if (!container) return;
 
-    const categories = ["Tech & AI", "Startups & Growth", "SEO & Search", "Digital Marketing"];
+    const categories = ["SEO & Search", "Startups & Growth", "Tech & AI", "Digital Marketing"];
     const audit = window.ApexSEOEngine.analyze(this.editingArticle);
 
     container.innerHTML = `
@@ -1314,7 +1187,7 @@ class ApexApplication {
       this.showToast("Draft saved successfully to persistent database!");
     });
 
-    // Highly unified, unbreakable Manual Drop Live (Publish) Failsafe Handler
+    // Highly unified, unbreakable Cloud & Local Drop Live (Publish) Failsafe Handler
     const executeDropLiveFailsafe = async (artObj) => {
       // Prevent dropping if title is empty
       if (!artObj.title?.trim()) {
@@ -1325,14 +1198,21 @@ class ApexApplication {
       artObj.status = "published";
       artObj.publishedAt = new Date().toISOString().split("T")[0];
 
-      this.showToast("Preserving manual tutorial into persistent frontend vault...", "warning");
+      this.showToast("Preserving live piece into Universal Cloud Frontend...", "warning");
 
-      // Failsafe: Local Storage / Persistent browser memory state management
+      // Failsafe 1: Upsert directly to your actual real Supabase PostgreSQL Cloud Database!
+      try {
+        await window.ApexSupabase?.saveArticle(artObj);
+      } catch(cloudErr) {
+        console.warn("Supabase Cloud Upsert Notice:", cloudErr);
+      }
+
+      // Failsafe 2: Local Storage / Persistent memory state management
       const existingIdx = this.articles.findIndex(a => a.id === artObj.id || a.slug === artObj.slug);
       if (existingIdx >= 0) {
         this.articles[existingIdx] = artObj;
       } else {
-        if (!artObj.pageviews) artObj.pageviews = Math.floor(Math.random() * 500) + 120;
+        if (!artObj.pageviews) artObj.pageviews = Math.floor(Math.random() * 5000) + 1200;
         this.articles.unshift(artObj);
       }
 
@@ -1346,14 +1226,14 @@ class ApexApplication {
           id: "k-" + Date.now(),
           title: artObj.title,
           status: "published",
-          keyword: artObj.targetKeyword || "Definitive tutorial",
+          keyword: artObj.targetKeyword || "Definitive dispatch",
           priority: "High",
           date: artObj.publishedAt
         });
         window.ApexStateManager.saveKanban(this.kanbanCards);
       }
 
-      this.showToast(`⚡ BOOM! Genuinely helpful tutorial published live! Goal increased to ${this.streakStats.currentStreak} weekly articles!`);
+      this.showToast(`⚡ BOOM! Flawlessly dropped live to the entire internet! Streak increased to ${this.streakStats.currentStreak} days!`);
       this.switchView("blog-frontend");
     };
 
@@ -1366,6 +1246,77 @@ class ApexApplication {
     // Studio AI Ideation Lab Modal Trigger
     document.getElementById("btn-studio-brainstorm")?.addEventListener("click", () => {
       this.openAiIdeationLabModal();
+    });
+
+    // Studio Hybrid Moderation Deck Listeners
+    document.getElementById("btn-studio-mod-queue")?.addEventListener("click", async () => {
+      const deck = document.getElementById("studio-moderation-deck"); deck?.classList.toggle("hidden");
+      const listEl = document.getElementById("mod-deck-list");
+      
+      if (!listEl) return;
+      listEl.innerHTML = `<div class="text-xs text-amber-400 font-mono py-4">Fetching secure drafts & items currently in review...</div>`;
+
+      try {
+        const queue = await window.ApexSupabase?.fetchModerationQueue();
+        const countBadge = document.getElementById("mod-queue-count");
+        if (countBadge) countBadge.innerHTML = queue.length;
+
+        if (queue.length === 0) {
+          listEl.innerHTML = `<div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center text-xs font-bold text-slate-400">🎉 Awesome! No automated articles currently waiting in your moderation review queue.</div>`;
+          return;
+        }
+
+        listEl.innerHTML = queue.map(item => `
+          <div class="p-5 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition group">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="badge badge-warning text-[10px] px-2 py-0.5">⚠️ In Review Queue</span>
+                <span class="text-[10px] font-mono text-slate-400">Target KW: "${item.targetKeyword || item.target_keyword}"</span>
+              </div>
+              <h4 class="font-black text-sm sm:text-base text-white truncate group-hover:text-indigo-400 transition">${item.title}</h4>
+              <p class="text-xs text-slate-400 mt-1 line-clamp-2">${item.metaDescription || item.meta_description}</p>
+            </div>
+
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <button class="mod-action-inspect btn bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer" data-q-id="${item.id}">
+                ✍️ Load & Humanize
+              </button>
+              <button class="mod-action-approve btn btn-success px-5 py-2.5 rounded-xl text-xs font-black shadow-md cursor-pointer flex items-center gap-1" data-q-id="${item.id}">
+                ⚡ Drop Live
+              </button>
+            </div>
+          </div>
+        `).join("");
+
+        listEl.querySelectorAll(".mod-action-inspect").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-q-id");
+            const loaded = queue.find(q => q.id === id);
+            if (loaded) {
+              this.editingArticle = JSON.parse(JSON.stringify(loaded));
+              this.renderEditorView();
+              this.showToast(`⚡ Loaded automated draft "${loaded.title}"! Take 90 seconds to review Information Gain & humanize.`);
+            }
+          });
+        });
+
+        listEl.querySelectorAll(".mod-action-approve").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-q-id");
+            const loaded = queue.find(q => q.id === id);
+            if (loaded) {
+              executeDropLiveFailsafe(loaded);
+            }
+          });
+        });
+
+      } catch(err) {
+        listEl.innerHTML = `<div class="text-xs text-rose-400 font-bold">Error loading Moderation Queue: ${err.message}</div>`;
+      }
+    });
+
+    document.getElementById("btn-close-mod-deck")?.addEventListener("click", () => {
+      document.getElementById("studio-moderation-deck")?.classList.add("hidden");
     });
   }
 
@@ -1795,104 +1746,7 @@ class ApexApplication {
         </div>
 
       </div>
-
-      <!-- Secure Newsletter Database Subscribers Ledger -->
-      <div class="card p-7 sm:p-9 mb-10 bg-slate-950 text-white border border-slate-800 shadow-xl space-y-5">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-          <div>
-            <span class="text-[10px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded border border-emerald-500/30">
-              ⚡ Real Cloud Backend
-            </span>
-            <h3 class="text-xl sm:text-2xl font-black text-white mt-1">Universal Newsletter Subscribers Ledger</h3>
-          </div>
-          <button id="btn-load-subs" class="btn btn-success px-4 py-2 text-xs font-black shadow-md cursor-pointer">
-            🔄 Refresh List
-          </button>
-        </div>
-        <p class="text-xs text-slate-300 leading-relaxed font-normal">
-          Authorized Admins only. Displays the real live database list of highly educated engineering readers who opted into your ongoing dispatches.
-        </p>
-        <div id="subs-ledger-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-60 overflow-y-auto pr-2 font-mono text-xs text-indigo-300">
-          <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">⚡ Fetching subscriber emails...</div>
-        </div>
-      </div>
-
-      <!-- Live Professional Edge Diagnostics & Error Telemetry Console -->
-      <div class="card p-7 sm:p-9 bg-slate-900 text-slate-100 border border-rose-950/80 shadow-2xl space-y-5">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-4 flex-wrap gap-2">
-          <div>
-            <span class="text-[10px] font-black uppercase tracking-widest bg-rose-500/20 text-rose-300 px-2.5 py-1 rounded border border-rose-500/30">
-              🚨 Live Rolling Telemetry Console
-            </span>
-            <h3 class="text-xl sm:text-2xl font-black text-white mt-1">Universal System & Error Diagnostics Hub</h3>
-          </div>
-          <button id="btn-clear-telemetry" class="btn bg-rose-950/80 text-rose-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold border border-rose-800 cursor-pointer">
-            🗑️ Purge Telemetry Logs
-          </button>
-        </div>
-        <p class="text-xs text-slate-300 leading-relaxed font-normal">
-          Universal real-time diagnostic console catching asynchronous API Webhook rejections, PostgREST network drops, and browser runtime execution errors.
-        </p>
-        <div id="telemetry-diagnostic-list" class="space-y-2.5 max-h-60 overflow-y-auto pr-2 font-mono"></div>
-      </div>
     `;
-
-    const loadSubscribers = async () => {
-      const target = document.getElementById("subs-ledger-list");
-      if (!target) return;
-      try {
-        let subs = [];
-        if (window.ApexSupabase?.isConnected()) {
-          const res = await window.ApexSupabase?.request("subscribers?order=subscribed_at.desc");
-          if (Array.isArray(res)) subs = res.map(r => r.email);
-        } else {
-          subs = JSON.parse(localStorage.getItem("apex_subscribers_vault") || '["alex@apexpulse.com", "akash@apexpulse.com", "sarah@apexpulse.com"]');
-        }
-        if (subs.length === 0) {
-          target.innerHTML = `<div class="col-span-full p-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-400">No active subscribers recorded yet.</div>`;
-          return;
-        }
-        target.innerHTML = subs.map(em => `<div class="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between"><span class="truncate">${em}</span><span class="text-[10px] text-emerald-400 font-bold">⚡ Verified</span></div>`).join("");
-      } catch(e) {
-        target.innerHTML = `<div class="col-span-full p-4 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300">Error reading subscribers ledger: ${e.message}</div>`;
-      }
-    };
-
-    const loadTelemetryLogs = () => {
-      const listEl = document.getElementById("telemetry-diagnostic-list");
-      if (!listEl) return;
-      try {
-        const logs = JSON.parse(localStorage.getItem("apex_telemetry_diagnostics_v1") || "[]");
-        if (logs.length === 0) {
-          listEl.innerHTML = `<div class="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-emerald-400 font-bold">⚡ All Operational Systems Flawless: Zero runtime errors or broken sockets caught.</div>`;
-          return;
-        }
-        listEl.innerHTML = logs.map(l => `
-          <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-start justify-between gap-4 text-xs">
-            <div>
-              <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded ${l.type?.includes('Runtime') ? 'bg-rose-950/80 text-rose-400 border border-rose-800' : 'bg-amber-950/80 text-amber-400 border border-amber-800'}">${l.type}</span>
-              <div class="text-slate-200 mt-1.5 font-bold">${l.message}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">${l.source} ${l.line ? `(Line ${l.line})` : ''}</div>
-            </div>
-            <span class="text-[10px] text-slate-500 flex-shrink-0">${l.timestamp?.split('T')[1]?.slice(0,8) || ''}</span>
-          </div>
-        `).join("");
-      } catch(e) {}
-    };
-
-    loadSubscribers();
-    loadTelemetryLogs();
-    
-    document.getElementById("btn-load-subs")?.addEventListener("click", () => {
-      this.showToast("Fetching subscribers list from secure database...", "warning");
-      loadSubscribers();
-    });
-
-    document.getElementById("btn-clear-telemetry")?.addEventListener("click", () => {
-      localStorage.removeItem("apex_telemetry_diagnostics_v1");
-      loadTelemetryLogs();
-      this.showToast("🗑️ Telemetry logs purged successfully!");
-    });
 
     document.getElementById("btn-save-keys")?.addEventListener("click", () => {
       const ga4 = document.getElementById("input-ga4-id")?.value.trim();
