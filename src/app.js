@@ -158,6 +158,36 @@ class ApexApplication {
       this.showToast("🎉 Message successfully dispatched! Our engineering staff will evaluate your scenario and respond within 12 hours.");
       e.target.reset();
     });
+
+    // 🚨 PROFESSIONAL EDGE DIAGNOSTIC TELEMETRY & LIVE ERROR MONITORING
+    window.addEventListener("error", (event) => {
+      this.recordDiagnosticTelemetry({
+        type: "JavaScript Runtime Error",
+        message: event.message,
+        source: event.filename,
+        line: event.lineno,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    window.addEventListener("unhandledrejection", (event) => {
+      this.recordDiagnosticTelemetry({
+        type: "Async API Webhook Rejection",
+        message: event.reason?.message || "Promise Rejected",
+        source: "Async Webhook",
+        timestamp: new Date().toISOString()
+      });
+    });
+  }
+
+  recordDiagnosticTelemetry(errObj) {
+    try {
+      const logs = JSON.parse(localStorage.getItem("apex_telemetry_diagnostics_v1") || "[]");
+      logs.unshift(errObj);
+      if (logs.length > 25) logs.pop(); // Maintain efficient pristine rolling array
+      localStorage.setItem("apex_telemetry_diagnostics_v1", JSON.stringify(logs));
+      console.warn("🚨 [Diagnostic Telemetry Logged]:", errObj.message);
+    } catch(e) {}
   }
 
   switchView(viewName) {
@@ -1786,6 +1816,25 @@ class ApexApplication {
           <div class="p-4 rounded-xl bg-slate-900 border border-slate-800">⚡ Fetching subscriber emails...</div>
         </div>
       </div>
+
+      <!-- Live Professional Edge Diagnostics & Error Telemetry Console -->
+      <div class="card p-7 sm:p-9 bg-slate-900 text-slate-100 border border-rose-950/80 shadow-2xl space-y-5">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4 flex-wrap gap-2">
+          <div>
+            <span class="text-[10px] font-black uppercase tracking-widest bg-rose-500/20 text-rose-300 px-2.5 py-1 rounded border border-rose-500/30">
+              🚨 Live Rolling Telemetry Console
+            </span>
+            <h3 class="text-xl sm:text-2xl font-black text-white mt-1">Universal System & Error Diagnostics Hub</h3>
+          </div>
+          <button id="btn-clear-telemetry" class="btn bg-rose-950/80 text-rose-300 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold border border-rose-800 cursor-pointer">
+            🗑️ Purge Telemetry Logs
+          </button>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed font-normal">
+          Universal real-time diagnostic console catching asynchronous API Webhook rejections, PostgREST network drops, and browser runtime execution errors.
+        </p>
+        <div id="telemetry-diagnostic-list" class="space-y-2.5 max-h-60 overflow-y-auto pr-2 font-mono"></div>
+      </div>
     `;
 
     const loadSubscribers = async () => {
@@ -1809,10 +1858,40 @@ class ApexApplication {
       }
     };
 
+    const loadTelemetryLogs = () => {
+      const listEl = document.getElementById("telemetry-diagnostic-list");
+      if (!listEl) return;
+      try {
+        const logs = JSON.parse(localStorage.getItem("apex_telemetry_diagnostics_v1") || "[]");
+        if (logs.length === 0) {
+          listEl.innerHTML = `<div class="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-emerald-400 font-bold">⚡ All Operational Systems Flawless: Zero runtime errors or broken sockets caught.</div>`;
+          return;
+        }
+        listEl.innerHTML = logs.map(l => `
+          <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-start justify-between gap-4 text-xs">
+            <div>
+              <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded ${l.type?.includes('Runtime') ? 'bg-rose-950/80 text-rose-400 border border-rose-800' : 'bg-amber-950/80 text-amber-400 border border-amber-800'}">${l.type}</span>
+              <div class="text-slate-200 mt-1.5 font-bold">${l.message}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">${l.source} ${l.line ? `(Line ${l.line})` : ''}</div>
+            </div>
+            <span class="text-[10px] text-slate-500 flex-shrink-0">${l.timestamp?.split('T')[1]?.slice(0,8) || ''}</span>
+          </div>
+        `).join("");
+      } catch(e) {}
+    };
+
     loadSubscribers();
+    loadTelemetryLogs();
+    
     document.getElementById("btn-load-subs")?.addEventListener("click", () => {
       this.showToast("Fetching subscribers list from secure database...", "warning");
       loadSubscribers();
+    });
+
+    document.getElementById("btn-clear-telemetry")?.addEventListener("click", () => {
+      localStorage.removeItem("apex_telemetry_diagnostics_v1");
+      loadTelemetryLogs();
+      this.showToast("🗑️ Telemetry logs purged successfully!");
     });
 
     document.getElementById("btn-save-keys")?.addEventListener("click", () => {
