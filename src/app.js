@@ -815,7 +815,7 @@ class ApexApplication {
         avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80"
       },
       image: "",
-      content: "# Your Awesome Manual Case Study\n\nWrite your introductory paragraph here. Make sure to embed your exact target keyword naturally right away...\n\n---\n\n## 1. Real Information Gain & Lessons Learned\nExplain the exact technical challenge you faced and what code you built to solve it naturally.\n",
+      content: "# Your Awesome Technical Deep Dive\n\nWrite your introductory overview paragraph here. Make sure to naturally naturally embed your target query inside your overview paragraph and subheadings...\n\n---\n\n## 1. Architectural Telemetry & Performance Benchmarks\nExplain the exact computational challenge or scalability bottleneck your readers face.\n",
       seoScore: 50
     };
     this.switchView("writer-studio");
@@ -830,7 +830,7 @@ class ApexApplication {
     const container = document.getElementById("writer-studio-container");
     if (!container) return;
 
-    const categories = ["SEO & Search", "Startups & Growth", "Tech & AI", "Digital Marketing"];
+    const categories = ["Tech & AI", "Startups & Growth", "SEO & Search", "Digital Marketing"];
     const audit = window.ApexSEOEngine.analyze(this.editingArticle);
 
     container.innerHTML = `
