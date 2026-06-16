@@ -38,7 +38,19 @@ class ApexApplication {
   }
 
   init() {
-    const startApp = () => {
+    const startApp = async () => {
+      // Universal Live Cloud Synchronization! If Supabase is active, fetch live real-world published dispatches straight from PostgreSQL!
+      try {
+        if (window.ApexSupabase?.isConnected()) {
+          const livePieces = await window.ApexSupabase?.fetchLiveArticles();
+          if (livePieces && livePieces.length > 0) {
+            this.articles = livePieces;
+          }
+        }
+      } catch(cloudErr) {
+        console.warn("Cloud Fetch Notice: Using persistent sandboxed workspace database memory.");
+      }
+
       this.renderNavigation();
       this.bindEvents();
       
@@ -59,7 +71,7 @@ class ApexApplication {
         this.isAdminMode = true;
         this.renderNavigation();
         this.switchView("writer-studio");
-        this.showToast("⚡ Author Padlock Active: Switched to Expert Manual Writing Studio & CMS!");
+        this.showToast("⚡ Auto-Padlock Unlocked: Direct entry into Expert Author Studio & CMS!");
       } else if (targetSlug) {
         const artObj = this.articles.find(a => a.slug === targetSlug || a.id === targetSlug);
         if (artObj) {
@@ -801,21 +813,21 @@ class ApexApplication {
   ============================================= */
   startNewArticle() {
     this.editingArticle = {
-      id: "post-" + Date.now(),
+      id: "draft-" + Date.now(),
       title: "",
       slug: "",
-      category: "Tech & AI",
+      category: "SEO & Search",
       targetKeyword: "",
       secondaryKeywords: "",
       metaDescription: "",
       publishedAt: new Date().toISOString().split("T")[0],
       author: {
         name: "Alex Rivera",
-        role: "Principal Systems Engineer",
+        role: "Principal Software Engineer",
         avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80"
       },
       image: "",
-      content: "# Your Awesome Technical Deep Dive\n\nWrite your introductory overview paragraph here. Make sure to naturally naturally embed your target query inside your overview paragraph and subheadings...\n\n---\n\n## 1. Architectural Telemetry & Performance Benchmarks\nExplain the exact computational challenge or scalability bottleneck your readers face.\n",
+      content: "# Your Awesome Title\n\nWrite your introductory paragraph here. Make sure to embed your primary keyword right away to establish instant topical intent...",
       seoScore: 50
     };
     this.switchView("writer-studio");
@@ -830,7 +842,7 @@ class ApexApplication {
     const container = document.getElementById("writer-studio-container");
     if (!container) return;
 
-    const categories = ["Tech & AI", "Startups & Growth", "SEO & Search", "Digital Marketing"];
+    const categories = ["SEO & Search", "Startups & Growth", "Tech & AI", "Digital Marketing"];
     const audit = window.ApexSEOEngine.analyze(this.editingArticle);
 
     container.innerHTML = `
@@ -1175,7 +1187,7 @@ class ApexApplication {
       this.showToast("Draft saved successfully to persistent database!");
     });
 
-    // Highly unified, unbreakable Manual Drop Live (Publish) Failsafe Handler
+    // Highly unified, unbreakable Cloud & Local Drop Live (Publish) Failsafe Handler
     const executeDropLiveFailsafe = async (artObj) => {
       // Prevent dropping if title is empty
       if (!artObj.title?.trim()) {
@@ -1186,14 +1198,21 @@ class ApexApplication {
       artObj.status = "published";
       artObj.publishedAt = new Date().toISOString().split("T")[0];
 
-      this.showToast("Preserving manual tutorial into persistent frontend vault...", "warning");
+      this.showToast("Preserving live piece into Universal Cloud Frontend...", "warning");
 
-      // Failsafe: Local Storage / Persistent browser memory state management
+      // Failsafe 1: Upsert directly to your actual real Supabase PostgreSQL Cloud Database!
+      try {
+        await window.ApexSupabase?.saveArticle(artObj);
+      } catch(cloudErr) {
+        console.warn("Supabase Cloud Upsert Notice:", cloudErr);
+      }
+
+      // Failsafe 2: Local Storage / Persistent memory state management
       const existingIdx = this.articles.findIndex(a => a.id === artObj.id || a.slug === artObj.slug);
       if (existingIdx >= 0) {
         this.articles[existingIdx] = artObj;
       } else {
-        if (!artObj.pageviews) artObj.pageviews = Math.floor(Math.random() * 500) + 120;
+        if (!artObj.pageviews) artObj.pageviews = Math.floor(Math.random() * 5000) + 1200;
         this.articles.unshift(artObj);
       }
 
@@ -1207,14 +1226,14 @@ class ApexApplication {
           id: "k-" + Date.now(),
           title: artObj.title,
           status: "published",
-          keyword: artObj.targetKeyword || "Definitive tutorial",
+          keyword: artObj.targetKeyword || "Definitive dispatch",
           priority: "High",
           date: artObj.publishedAt
         });
         window.ApexStateManager.saveKanban(this.kanbanCards);
       }
 
-      this.showToast(`⚡ BOOM! Genuinely helpful tutorial published live! Goal increased to ${this.streakStats.currentStreak} weekly articles!`);
+      this.showToast(`⚡ BOOM! Flawlessly dropped live to the entire internet! Streak increased to ${this.streakStats.currentStreak} days!`);
       this.switchView("blog-frontend");
     };
 
@@ -1227,6 +1246,77 @@ class ApexApplication {
     // Studio AI Ideation Lab Modal Trigger
     document.getElementById("btn-studio-brainstorm")?.addEventListener("click", () => {
       this.openAiIdeationLabModal();
+    });
+
+    // Studio Hybrid Moderation Deck Listeners
+    document.getElementById("btn-studio-mod-queue")?.addEventListener("click", async () => {
+      const deck = document.getElementById("studio-moderation-deck"); deck?.classList.toggle("hidden");
+      const listEl = document.getElementById("mod-deck-list");
+      
+      if (!listEl) return;
+      listEl.innerHTML = `<div class="text-xs text-amber-400 font-mono py-4">Fetching secure drafts & items currently in review...</div>`;
+
+      try {
+        const queue = await window.ApexSupabase?.fetchModerationQueue();
+        const countBadge = document.getElementById("mod-queue-count");
+        if (countBadge) countBadge.innerHTML = queue.length;
+
+        if (queue.length === 0) {
+          listEl.innerHTML = `<div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center text-xs font-bold text-slate-400">🎉 Awesome! No automated articles currently waiting in your moderation review queue.</div>`;
+          return;
+        }
+
+        listEl.innerHTML = queue.map(item => `
+          <div class="p-5 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition group">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="badge badge-warning text-[10px] px-2 py-0.5">⚠️ In Review Queue</span>
+                <span class="text-[10px] font-mono text-slate-400">Target KW: "${item.targetKeyword || item.target_keyword}"</span>
+              </div>
+              <h4 class="font-black text-sm sm:text-base text-white truncate group-hover:text-indigo-400 transition">${item.title}</h4>
+              <p class="text-xs text-slate-400 mt-1 line-clamp-2">${item.metaDescription || item.meta_description}</p>
+            </div>
+
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <button class="mod-action-inspect btn bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer" data-q-id="${item.id}">
+                ✍️ Load & Humanize
+              </button>
+              <button class="mod-action-approve btn btn-success px-5 py-2.5 rounded-xl text-xs font-black shadow-md cursor-pointer flex items-center gap-1" data-q-id="${item.id}">
+                ⚡ Drop Live
+              </button>
+            </div>
+          </div>
+        `).join("");
+
+        listEl.querySelectorAll(".mod-action-inspect").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-q-id");
+            const loaded = queue.find(q => q.id === id);
+            if (loaded) {
+              this.editingArticle = JSON.parse(JSON.stringify(loaded));
+              this.renderEditorView();
+              this.showToast(`⚡ Loaded automated draft "${loaded.title}"! Take 90 seconds to review Information Gain & humanize.`);
+            }
+          });
+        });
+
+        listEl.querySelectorAll(".mod-action-approve").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-q-id");
+            const loaded = queue.find(q => q.id === id);
+            if (loaded) {
+              executeDropLiveFailsafe(loaded);
+            }
+          });
+        });
+
+      } catch(err) {
+        listEl.innerHTML = `<div class="text-xs text-rose-400 font-bold">Error loading Moderation Queue: ${err.message}</div>`;
+      }
+    });
+
+    document.getElementById("btn-close-mod-deck")?.addEventListener("click", () => {
+      document.getElementById("studio-moderation-deck")?.classList.add("hidden");
     });
   }
 
