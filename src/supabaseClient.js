@@ -35,6 +35,33 @@ window.ApexSupabase = {
   },
 
   /**
+   * Data Transfer Object (DTO) Adapter mapping snake_case PostgreSQL rows to camelCase Frontend State
+   */
+  normalizeArticle(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      slug: row.slug,
+      title: row.title || "",
+      metaDescription: row.meta_description || row.metaDescription || "",
+      category: row.category || "Tech & AI",
+      targetKeyword: row.target_keyword || row.targetKeyword || "",
+      secondaryKeywords: row.secondary_keywords || row.secondaryKeywords || "",
+      content: row.content || "",
+      image: row.image_url || row.image || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80",
+      seoScore: row.seo_score || row.seoScore || 85,
+      pageviews: row.pageviews || 1,
+      status: row.status || "in_review",
+      publishedAt: row.published_at || row.publishedAt || new Date().toISOString().split("T")[0],
+      author: row.author || {
+        name: "Alex Rivera",
+        role: "Principal Systems Architect",
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80"
+      }
+    };
+  },
+
+  /**
    * Universal REST fetch wrapper for Supabase PostgREST Endpoints
    */
   async request(path, method = "GET", body = null) {
@@ -84,7 +111,8 @@ window.ApexSupabase = {
     }
     
     // Request only fully approved pieces to protect your Google Helpful Content authority
-    return await this.request("articles?status=eq.published&order=published_at.desc");
+    const res = await this.request("articles?status=eq.published&order=published_at.desc");
+    return Array.isArray(res) ? res.map(r => this.normalizeArticle(r)) : window.ApexStateManager.getArticles();
   },
 
   /**
@@ -96,7 +124,8 @@ window.ApexSupabase = {
       return local.filter(a => a.status === "in_review");
     }
 
-    return await this.request("articles?status=eq.in_review&order=created_at.desc");
+    const res = await this.request("articles?status=eq.in_review&order=created_at.desc");
+    return Array.isArray(res) ? res.map(r => this.normalizeArticle(r)) : [];
   },
 
   /**
