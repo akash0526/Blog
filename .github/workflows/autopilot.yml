@@ -13,16 +13,15 @@ jobs:
       - name: 📥 Checkout Production Repository
         uses: actions/checkout@v4
 
-      - name: 🐍 Setup Setup Python 3.11 Runtime
+      - name: 🐍 Setup Python 3.11 Runtime
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: ⚙️ Install Python Dependencies (If external packages are connected)
+      - name: ⚙️ Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests urllib3
+          pip install -r requirements.txt
 
       - name: 🚀 Execute Standalone Niche Affiliate Synthesizer Webhook
         env:
