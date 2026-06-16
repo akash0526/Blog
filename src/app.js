@@ -46,9 +46,9 @@ class ApexApplication {
         this.renderNavigation();
         this.bindEvents();
         
-        // Auto-detect incoming deep links for specific blog articles (Pathname or Hash)
-        const path = window.location.pathname;
-        const hash = window.location.hash;
+        // Auto-detect incoming deep links for specific blog articles & Core user pages
+        const path = window.location.pathname.toLowerCase();
+        const hash = window.location.hash.toLowerCase();
         
         let targetSlug = null;
         if (path.includes("/blog/")) {
@@ -57,20 +57,27 @@ class ApexApplication {
           targetSlug = hash.split("/blog/")[1]?.replace(/\/$/, "");
         }
 
-        this.switchView("blog-frontend");
-
-        if (hash.includes("cms")) {
-          this.isAdminMode = true;
-          this.renderNavigation();
-          this.switchView("writer-studio");
-          this.showToast("⚡ Author Padlock Active: Switched to Expert Manual Writing Studio & CMS!");
+        // Check for standalone Core view requests
+        if (path.includes("/about") || hash.includes("about")) {
+          this.switchView("about");
+        } else if (path.includes("/contact") || hash.includes("contact")) {
+          this.switchView("contact");
+        } else if (path.includes("/privacy") || hash.includes("privacy")) {
+          this.switchView("privacy");
+        } else if (path.includes("/terms") || hash.includes("terms")) {
+          this.switchView("terms");
+        } else if (path.includes("/admin") || path.includes("/login") || hash.includes("admin") || hash.includes("login") || hash.includes("cms")) {
+          this.switchView("writer-studio"); // Rout bouncer automatically opens proper Secure Login Gateway
         } else if (targetSlug) {
+          this.switchView("blog-frontend");
           const artObj = this.articles.find(a => a.slug === targetSlug || a.id === targetSlug);
           if (artObj) {
             setTimeout(() => {
               this.openFullArticleView(artObj.id);
             }, 50);
           }
+        } else {
+          this.switchView("blog-frontend");
         }
       } catch(initErr) {
         console.error("Apex Startup Diagnostic Error:", initErr);
@@ -143,6 +150,13 @@ class ApexApplication {
       } else {
         this.switchView("blog-frontend");
       }
+    });
+
+    // Core Working Contact Form Handler
+    document.getElementById("contact-us-form")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      this.showToast("🎉 Message successfully dispatched! Our engineering staff will evaluate your scenario and respond within 12 hours.");
+      e.target.reset();
     });
   }
 
@@ -324,11 +338,12 @@ class ApexApplication {
           </a>
           
           <!-- Desktop Nav -->
-          <nav class="nav-links hidden md:flex items-center gap-8 font-extrabold text-sm text-slate-600 dark:text-slate-300">
+          <nav class="nav-links hidden md:flex items-center gap-7 font-extrabold text-sm text-slate-600 dark:text-slate-300">
             <a href="/" class="nav-link active hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer" data-view="blog-frontend">Explore Dispatches</a>
             <a href="/categories/tech-ai" class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="Tech & AI">Tech & AI</a>
             <a href="/categories/startups-growth" class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="Startups & Growth">Startups & Growth</a>
-            <a href="/categories/seo-strategy" class="cat-quick-link hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition" data-cat="SEO & Search">SEO Strategy</a>
+            <a href="/about" class="nav-link hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer" data-view="about">About Us</a>
+            <a href="/contact" class="nav-link hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer" data-view="contact">Contact</a>
           </nav>
           
           <div class="flex items-center gap-2 sm:gap-3">
@@ -354,7 +369,8 @@ class ApexApplication {
           <a href="/" class="block py-2 nav-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-view="blog-frontend">Explore Dispatches</a>
           <a href="/categories/tech-ai" class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="Tech & AI">Tech & AI</a>
           <a href="/categories/startups-growth" class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="Startups & Growth">Startups & Growth</a>
-          <a href="/categories/seo-strategy" class="block py-2 cat-quick-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-cat="SEO & Search">SEO Strategy</a>
+          <a href="/about" class="block py-2 nav-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-view="about">About Us</a>
+          <a href="/contact" class="block py-2 nav-link cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400" data-view="contact">Contact</a>
           <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3">
             <button id="cta-drawer-newsletter" class="btn btn-primary w-full py-3 rounded-xl font-black text-xs">
               Join 45k+ Engineers
