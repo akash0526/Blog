@@ -11,8 +11,13 @@ from datetime import datetime, date
 # injects affiliate links, and pushes directly to Supabase Cloud Database.
 # ====================================================================
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://qygrnvneeoxotpzgolvp.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5Z3Judm5lZW94b3RwemdvbHZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDA2MjAsImV4cCI6MjA5NzE3NjYyMH0.qRItOoiqDo2lpUo4J38T-QJyWCHDL-zVsTUWrzy0xV0")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
+if not SUPABASE_URL or SUPABASE_URL.startswith("*") or not SUPABASE_URL.startswith("http"):
+    SUPABASE_URL = "https://qygrnvneeoxotpzgolvp.supabase.co"
+
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
+if not SUPABASE_KEY or SUPABASE_KEY.startswith("*"):
+    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5Z3Judm5lZW94b3RwemdvbHZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDA2MjAsImV4cCI6MjA5NzE3NjYyMH0.qRItOoiqDo2lpUo4J38T-QJyWCHDL-zVsTUWrzy0xV0"
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
 
