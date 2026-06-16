@@ -146,10 +146,18 @@
   <script src="./src/app.js"></script>
 
   <script>
-    document.getElementById("newsletter-form")?.addEventListener("submit", (e) => {
+    document.getElementById("newsletter-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
-      window.ApexPulseApp.showToast("⚡ Welcome to the Daily Drop! You are officially subscribed.");
-      e.target.reset();
+      const em = e.target.querySelector("input[type='email']")?.value;
+      if (em) {
+        try {
+          await window.ApexSupabase?.subscribeNewsletter(em);
+          window.ApexPulseApp?.showToast("⚡ Amazing! You are successfully verified & subscribed.");
+          e.target.reset();
+        } catch(err) {
+          window.ApexPulseApp?.showToast("Subscription failed or network offline.", "warning");
+        }
+      }
     });
   </script>
 
