@@ -38,7 +38,7 @@ class ApexApplication {
   }
 
   init() {
-    document.addEventListener("DOMContentLoaded", () => {
+    const startApp = () => {
       this.renderNavigation();
       this.bindEvents();
       
@@ -55,7 +55,12 @@ class ApexApplication {
 
       this.switchView("blog-frontend");
 
-      if (targetSlug) {
+      if (hash.includes("cms")) {
+        this.isAdminMode = true;
+        this.renderNavigation();
+        this.switchView("writer-studio");
+        this.showToast("⚡ Auto-Padlock Unlocked: Direct entry into Expert Author Studio & CMS!");
+      } else if (targetSlug) {
         const artObj = this.articles.find(a => a.slug === targetSlug || a.id === targetSlug);
         if (artObj) {
           setTimeout(() => {
@@ -63,7 +68,13 @@ class ApexApplication {
           }, 50);
         }
       }
-    });
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", startApp);
+    } else {
+      startApp();
+    }
   }
 
   bindEvents() {
@@ -476,7 +487,7 @@ class ApexApplication {
     const grid = document.getElementById("frontend-blog-grid");
     if (!grid) return;
 
-    let filtered = this.articles;
+    let filtered = this.articles.filter(a => a.status !== "in_review" && a.status !== "draft");
     if (this.activeCategoryFilter !== "All") {
       filtered = filtered.filter(a => a.category === this.activeCategoryFilter);
     }
@@ -832,17 +843,40 @@ class ApexApplication {
           </span>
         </div>
         
-        <div class="flex items-center gap-3">
-          <button id="btn-studio-brainstorm" class="btn btn-secondary px-4 py-2.5 rounded-xl text-xs font-black text-indigo-600 border-indigo-200 hover:bg-indigo-50 flex items-center gap-1.5">
-            ${window.ApexIcons.sparkles} AI Topic Ideation Lab
+        <div class="flex items-center gap-2 sm:gap-3">
+          <button id="btn-studio-mod-queue" class="btn bg-slate-900 dark:bg-slate-950 hover:bg-slate-800 text-amber-400 border border-amber-500/30 px-4 py-2.5 rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 cursor-pointer">
+            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            HITL Review Queue (<span id="mod-queue-count">2</span>)
           </button>
-          <button id="btn-studio-save-draft" class="btn btn-secondary px-5 py-2.5 rounded-xl text-xs font-extrabold">
+          <button id="btn-studio-brainstorm" class="btn btn-secondary px-4 py-2.5 rounded-xl text-xs font-black text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-800 flex items-center gap-1.5">
+            ${window.ApexIcons?.sparkles || '✨'} AI Topic Ideation Lab
+          </button>
+          <button id="btn-studio-save-draft" class="btn btn-secondary px-5 py-2.5 rounded-xl text-xs font-extrabold dark:bg-slate-800 dark:text-white dark:border-slate-700">
             Save as Draft
           </button>
-          <button id="btn-studio-publish-live" class="btn btn-success px-6 py-2.5 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/20 flex items-center gap-1.5">
+          <button id="btn-studio-publish-live" class="btn btn-success px-6 py-2.5 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 transform hover:scale-105 transition">
             ⚡ Drop Live (Add to Streak)
           </button>
         </div>
+      </div>
+
+      <!-- Human Moderation Hybrid Deck (Hidden by default) -->
+      <div id="studio-moderation-deck" class="hidden card p-7 sm:p-9 mb-8 bg-slate-950 text-slate-100 border border-amber-500/40 shadow-2xl space-y-6 animate-slideIn">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div>
+            <span class="text-[10px] font-black uppercase tracking-widest bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded border border-amber-500/30">
+              ⚡ Hybrid E-E-A-T Control
+            </span>
+            <h3 class="text-xl sm:text-2xl font-black text-white mt-1">Human-in-the-Loop (HITL) Moderation Queue</h3>
+          </div>
+          <button id="btn-close-mod-deck" class="text-slate-400 hover:text-white font-bold text-lg cursor-pointer">&times;</button>
+        </div>
+
+        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
+          Review automated autopilot affiliate drops generated overnight by your Python cron workers. To protect your site against Google Helpful Content updates, take 90 seconds to scan the Information Gain and inject a quick expert sentence before approving.
+        </p>
+
+        <div id="mod-deck-list" class="space-y-3 max-h-72 overflow-y-auto pr-2"></div>
       </div>
 
       <!-- Main Dual Split Workspace (Left Editor, Right SEO Live Audit) -->
@@ -1186,6 +1220,88 @@ class ApexApplication {
     // Studio AI Ideation Lab Modal Trigger
     document.getElementById("btn-studio-brainstorm")?.addEventListener("click", () => {
       this.openAiIdeationLabModal();
+    });
+
+    // Studio Hybrid Moderation Deck Listeners
+    document.getElementById("btn-studio-mod-queue")?.addEventListener("click", async () => {
+      const deck = document.getElementById("studio-moderation-deck"); deck?.classList.toggle("hidden");
+      const listEl = document.getElementById("mod-deck-list");
+      
+      if (!listEl) return;
+      listEl.innerHTML = `<div class="text-xs text-amber-400 font-mono py-4">Fetching secure drafts & items currently in review...</div>`;
+
+      try {
+        const queue = await window.ApexSupabase?.fetchModerationQueue();
+        const countBadge = document.getElementById("mod-queue-count");
+        if (countBadge) countBadge.innerHTML = queue.length;
+
+        if (queue.length === 0) {
+          listEl.innerHTML = `<div class="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center text-xs font-bold text-slate-400">🎉 Awesome! No automated articles currently waiting in your moderation review queue.</div>`;
+          return;
+        }
+
+        listEl.innerHTML = queue.map(item => `
+          <div class="p-5 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition group">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="badge badge-warning text-[10px] px-2 py-0.5">⚠️ In Review Queue</span>
+                <span class="text-[10px] font-mono text-slate-400">Target KW: "${item.targetKeyword || item.target_keyword}"</span>
+              </div>
+              <h4 class="font-black text-sm sm:text-base text-white truncate group-hover:text-indigo-400 transition">${item.title}</h4>
+              <p class="text-xs text-slate-400 mt-1 line-clamp-2">${item.metaDescription || item.meta_description}</p>
+            </div>
+
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <button class="mod-action-inspect btn bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer" data-q-id="${item.id}">
+                ✍️ Load & Humanize
+              </button>
+              <button class="mod-action-approve btn btn-success px-5 py-2.5 rounded-xl text-xs font-black shadow-md cursor-pointer flex items-center gap-1" data-q-id="${item.id}">
+                ⚡ Drop Live
+              </button>
+            </div>
+          </div>
+        `).join("");
+
+        listEl.querySelectorAll(".mod-action-inspect").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const id = btn.getAttribute("data-q-id");
+            const loaded = queue.find(q => q.id === id);
+            if (loaded) {
+              this.editingArticle = JSON.parse(JSON.stringify(loaded));
+              this.renderEditorView();
+              this.showToast(`⚡ Loaded automated draft "${loaded.title}"! Take 90 seconds to review Information Gain & humanize.`);
+            }
+          });
+        });
+
+        listEl.querySelectorAll(".mod-action-approve").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-q-id");
+            const loaded = queue.find(q => q.id === id);
+            if (loaded) {
+              loaded.status = "published";
+              loaded.publishedAt = new Date().toISOString().split("T")[0];
+              await window.ApexSupabase?.saveArticle(loaded);
+              
+              // Auto add to persistent front end memory
+              const list = window.ApexStateManager.getArticles();
+              list.unshift(loaded);
+              window.ApexStateManager.saveArticles(list);
+              this.streakStats = window.ApexStateManager.recordPublishEvent();
+
+              this.showToast(`⚡ BOOM! Flawlessly approved and dropped live! Streak increased to ${this.streakStats.currentStreak} days!`);
+              this.switchView("blog-frontend");
+            }
+          });
+        });
+
+      } catch(err) {
+        listEl.innerHTML = `<div class="text-xs text-rose-400 font-bold">Error loading Moderation Queue: ${err.message}</div>`;
+      }
+    });
+
+    document.getElementById("btn-close-mod-deck")?.addEventListener("click", () => {
+      document.getElementById("studio-moderation-deck")?.classList.add("hidden");
     });
   }
 
@@ -1667,25 +1783,70 @@ class ApexApplication {
         </div>
       </div>
 
-      <!-- Live Domain Configuration Setting -->
-      <div class="card p-6 sm:p-8 mb-8 bg-indigo-50/50 border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <!-- Live Custom Domain Configuration Setting -->
+      <div class="card p-6 sm:p-8 mb-8 bg-indigo-50/50 dark:bg-slate-900 border-indigo-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
         <div>
-          <h3 class="text-base font-black text-indigo-950 flex items-center gap-2">
+          <h3 class="text-base font-black text-indigo-950 dark:text-white flex items-center gap-2">
             <span>⚡ Target Production Domain Name</span>
           </h3>
-          <p class="text-xs text-indigo-700 font-semibold mt-0.5">
+          <p class="text-xs text-indigo-700 dark:text-indigo-300 font-semibold mt-0.5">
             Configures the absolute base URL for your XML Sitemaps, Robots.txt, Open Graph meta tags, and live Schema.org JSON-LD scripts.
           </p>
         </div>
         <div class="flex items-center gap-2.5 w-full sm:w-auto">
-          <input id="input-domain-setting" type="url" value="${currentDomain}" class="input text-xs font-mono font-bold w-full sm:w-72 rounded-xl py-2.5 bg-white border-indigo-200">
+          <input id="input-domain-setting" type="url" value="${currentDomain}" class="input text-xs font-mono font-bold w-full sm:w-72 rounded-xl py-2.5 bg-white dark:bg-slate-950 dark:text-white border-indigo-200 dark:border-slate-700">
           <button id="btn-save-domain" class="btn btn-primary px-5 py-2.5 text-xs font-black whitespace-nowrap rounded-xl shadow-sm">
             Save URL
           </button>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <!-- Supabase PostgreSQL Real Cloud Setup Deck -->
+      <div class="card p-7 sm:p-9 mb-10 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white border border-slate-800 shadow-2xl space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-[10px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded border border-emerald-500/30">
+                ⚡ Premium Autopilot Architecture
+              </span>
+              <span class="text-xs font-bold text-slate-400 font-mono">PostgreSQL REST Sync</span>
+            </div>
+            <h3 class="text-2xl font-black text-white">Supabase Multi-Author Cloud Database Connect</h3>
+          </div>
+          
+          <div class="flex items-center gap-2.5">
+            <span id="supabase-status-badge" class="badge ${window.ApexSupabase?.isConnected() ? 'badge-success' : 'badge-neutral'} text-xs px-3.5 py-2">
+              ${window.ApexSupabase?.isConnected() ? '⚡ Connected Cloud' : '🔒 Persistent Offline Mode'}
+            </span>
+          </div>
+        </div>
+
+        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
+          Connect your secure Supabase PostgreSQL database to turn this platform into an unstoppable multi-author autopilot engine. Automatic Python cron workers push highly optimized long-tail affiliate pieces directly into your Cloud Vault.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+          <div>
+            <label class="block text-xs font-black text-slate-300 mb-2 uppercase tracking-wider">Supabase Project URL</label>
+            <input id="input-supa-url" type="url" placeholder="https://your-project.supabase.co" value="${window.ApexSupabase?.config().url || ''}" class="input text-xs font-mono font-bold bg-slate-950/90 border-slate-800 text-white rounded-2xl py-3.5 focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-black text-slate-300 mb-2 uppercase tracking-wider">Supabase Anon Public API Key</label>
+            <input id="input-supa-key" type="password" placeholder="eyJh..." value="${window.ApexSupabase?.config().key || ''}" class="input text-xs font-mono font-bold bg-slate-950/90 border-slate-800 text-white rounded-2xl py-3.5 focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-800/80">
+          <button id="btn-supa-disconnect" class="btn btn-secondary bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-rose-400 border-slate-700 px-5 py-3 rounded-xl text-xs font-extrabold transition">
+            Disconnect Cloud
+          </button>
+          <button id="btn-supa-connect" class="btn btn-success px-8 py-3 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/25 flex items-center gap-2 transform hover:scale-105 transition">
+            ⚡ Save & Verify Supabase Cloud
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
         
         <!-- Sitemap XML Card -->
         <div class="card p-6 sm:p-8 flex flex-col justify-between">
@@ -1804,6 +1965,39 @@ class ApexApplication {
         this.renderSeoToolsSuite();
         this.showToast(`⚡ Domain successfully updated to ${val}! All sitemaps & open graph tags recalculated.`);
       }
+    });
+
+    document.getElementById("btn-supa-connect")?.addEventListener("click", async () => {
+      const u = document.getElementById("input-supa-url")?.value.trim();
+      const k = document.getElementById("input-supa-key")?.value.trim();
+      
+      if (!u || !k) {
+        this.showToast("Enter both Supabase URL and Anon Key!", "warning");
+        return;
+      }
+
+      this.showToast("Authenticating with Supabase PostgreSQL...", "warning");
+      const ok = window.ApexSupabase?.saveCredentials(u, k);
+      
+      if (ok) {
+        try {
+          // Perform a fast test request to verify table permissions
+          await window.ApexSupabase?.fetchLiveArticles();
+          this.renderSeoToolsSuite();
+          this.showToast("🎉 Awesome! Successfully connected to Supabase PostgreSQL Cloud!");
+        } catch(err) {
+          this.showToast("Connected, but verify table RLS permissions in Supabase!", "warning");
+          this.renderSeoToolsSuite();
+        }
+      } else {
+        this.showToast("Failed to save credentials!", "warning");
+      }
+    });
+
+    document.getElementById("btn-supa-disconnect")?.addEventListener("click", () => {
+      window.ApexSupabase?.disconnect();
+      this.renderSeoToolsSuite();
+      this.showToast("Disconnected Cloud: Switched back to robust Offline Persistent storage.");
     });
 
     document.getElementById("btn-download-robots")?.addEventListener("click", () => {

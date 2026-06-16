@@ -1,0 +1,33 @@
+name: Apex Cloud Autopilot Affiliate Flywheel
+
+on:
+  schedule:
+    # Executes automatically every single night at 3:00 AM local Nepal time (21:15 UTC)
+    - cron: '15 21 * * *'
+  workflow_dispatch: # Allows 1-click manual manual triggering inside the GitHub Actions tab
+
+jobs:
+  cloud_autopilot_drop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Production Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Setup Python 3.11 Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: ⚙️ Install Python Dependencies (If external packages are connected)
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests urllib3
+
+      - name: 🚀 Execute Standalone Niche Affiliate Synthesizer Webhook
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: python3 autopilot_worker.py
