@@ -1,25 +1,23 @@
 import os
 import json
-import time  # NEW: for retry backoff
-import urllib.request
 import re
+import time
 from datetime import datetime, date
-from urllib.error import HTTPError
+import requests  # NEW: replaces urllib — auto-handles gzip/deflate/brotli, better errors
 
 # ====================================================================
-# APEX PULSE — AUTOPILOT CONTENT WORKER (v1.2 — Resilient Edition)
+# APEX PULSE — AUTOPILOT CONTENT WORKER (v1.3 — Hardened Edition)
 # --------------------------------------------------------------------
-# Changelog vs v1.1:
-#   - Smart retry-with-backoff for HTTP 429 rate-limit responses
-#   - Browser-like headers to bypass Cloudflare bot detection (Groq)
-#   - Multiple OpenRouter free models tried in sequence
-#   - Supabase push now uses UPSERT (no more duplicate-slug errors)
-#   - Small delay between providers to be friendly to rate limiters
+# Changelog vs v1.2:
+#   - Replaced urllib with requests (auto-handles gzip compression)
+#   - OpenRouter free models now discovered at runtime (no hardcoded names)
+#   - Removed manual Accept-Encoding header (requests handles it)
+#   - Better failure diagnostics: counts and reports per-provider success
 # --------------------------------------------------------------------
 # Provider priority chain (first available wins):
 #   1. Gemini        — free, highest quality, 1,500 req/day
 #   2. Groq          — free, fastest inference
-#   3. OpenRouter    — free, 4 fallback models tried in sequence
+#   3. OpenRouter    — free, dynamically discovered models
 #   4. OpenAI        — paid (you may have signup credits)
 #   5. Claude        — paid
 #   6. Template      — curated fallback, always works
@@ -42,18 +40,10 @@ CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "").strip()
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
-# CHANGED: was a single model. Now a prioritized list — first to succeed wins.
-# Each one is a free OpenRouter model with different popularity/load patterns.
-OPENROUTER_MODELS = [
-    os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"),
-    "qwen/qwen-2.5-72b-instruct:free",
-    "deepseek/deepseek-chat:free",
-    "meta-llama/llama-3.3-70b-instruct:free",  # last because most overloaded
-]
-
 # --- Behavior tuning ---
 DELAY_BETWEEN_PROVIDERS_SEC = float(os.environ.get("DELAY_BETWEEN_PROVIDERS_SEC", "1.5"))
 MAX_RETRIES_PER_PROVIDER = int(os.environ.get("MAX_RETRIES_PER_PROVIDER", "2"))
+REQUEST_TIMEOUT_SEC = int(os.environ.get("REQUEST_TIMEOUT_SEC", "60"))
 
 
 # ====================================================================
@@ -86,10 +76,12 @@ def active_provider():
 
 
 # ====================================================================
-# HTTP helpers
+# HTTP helpers (now using requests — handles gzip automatically)
 # ====================================================================
 
-# Browser-like headers to avoid Cloudflare bot detection (fixes Groq 1010)
+# Common browser-like headers to look less bot-like.
+# NOTE: We deliberately do NOT send "Accept-Encoding" — the requests
+# library sets its own value AND auto-decompresses the response.
 _BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -98,70 +90,83 @@ _BROWSER_HEADERS = {
     ),
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
 }
 
 
 def fetch_url(url, headers=None, timeout=15):
-    req_headers = dict(_BROWSER_HEADERS)
+    """Simple GET helper. Requests auto-decompresses gzip/deflate/brotli."""
+    merged_headers = dict(_BROWSER_HEADERS)
     if headers:
-        req_headers.update(headers)
-    req = urllib.request.Request(url, headers=req_headers)
-    with urllib.request.urlopen(req, timeout=timeout) as res:
-        return res.read().decode("utf-8")
+        merged_headers.update(headers)
+    response = requests.get(url, headers=merged_headers, timeout=timeout)
+    response.raise_for_status()
+    return response.text
 
 
-def _post_json(url, payload, headers=None, timeout=60):
-    """POST JSON helper with consistent error handling."""
-    req_headers = {"Content-Type": "application/json"}
-    req_headers.update(_BROWSER_HEADERS)
+def _post_json(url, payload, headers=None, timeout=None):
+    """POST JSON helper using requests."""
+    if timeout is None:
+        timeout = REQUEST_TIMEOUT_SEC
+    merged_headers = dict(_BROWSER_HEADERS)
+    merged_headers["Content-Type"] = "application/json"
     if headers:
-        req_headers.update(headers)
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=req_headers,
-        method="POST",
-    )
+        merged_headers.update(headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as res:
-            return res.read().decode("utf-8"), res.status
-    except HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-        print(f"🚨 HTTP {e.code} from {url.split('?')[0]}: {body[:240]}")
-        raise
+        response = requests.post(url, json=payload, headers=merged_headers, timeout=timeout)
+        # Don't raise — we want to handle specific status codes with retry logic
+        return response.text, response.status_code
+    except requests.exceptions.RequestException as e:
+        # Convert to a uniform error format
+        raise RuntimeError(f"Network error: {e}") from e
 
 
-def _post_json_with_retry(url, payload, headers=None, timeout=60, max_retries=None):
+def _post_json_with_retry(url, payload, headers=None, timeout=None, max_retries=None):
     """
-    POST JSON with smart exponential backoff for HTTP 429 (rate limit) errors.
+    POST JSON with smart exponential backoff for retryable status codes.
 
-    403/401/etc are NOT retried (they're not transient — retrying wastes time).
-    429 IS retried with 2s, 4s, 8s waits between attempts.
-    Network errors are retried too.
+    Retryable:
+      429 — rate limited
+      500, 502, 503, 504 — server errors
+    Non-retryable (immediate fail):
+      400, 401, 403, 404 — bad request, auth, or resource missing
     """
     if max_retries is None:
         max_retries = MAX_RETRIES_PER_PROVIDER
+    if timeout is None:
+        timeout = REQUEST_TIMEOUT_SEC
 
     last_error = None
     for attempt in range(max_retries + 1):
         try:
-            return _post_json(url, payload, headers, timeout)
-        except HTTPError as e:
-            last_error = e
-            # Only retry on 429 (rate limit) or 5xx (server error)
-            if e.code in (429, 500, 502, 503, 504) and attempt < max_retries:
-                wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
-                reason = "rate-limited" if e.code == 429 else f"server error {e.code}"
-                print(f"⏳ {reason}. Waiting {wait}s before retry {attempt + 1}/{max_retries}...")
-                time.sleep(wait)
-                continue
-            raise
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            text, status = _post_json(url, payload, headers, timeout)
+
+            if status in (429, 500, 502, 503, 504):
+                if attempt < max_retries:
+                    wait = 2 ** (attempt + 1)
+                    reason = "rate-limited" if status == 429 else f"server error {status}"
+                    print(f"⏳ {reason}. Waiting {wait}s before retry {attempt + 1}/{max_retries}...")
+                    time.sleep(wait)
+                    continue
+                # Out of retries — raise as HTTPError-like
+                raise RuntimeError(f"HTTP {status} after {max_retries + 1} attempts: {text[:200]}")
+
+            if status >= 400:
+                # Non-retryable client error — surface it immediately
+                raise RuntimeError(f"HTTP {status}: {text[:200]}")
+
+            return text, status
+        except RuntimeError as e:
+            # Re-raise without retry for non-retryable HTTP errors
+            msg = str(e)
+            if "HTTP 4" in msg and "attempts" not in msg:
+                raise
+            if "HTTP 4" in msg and "attempts" in msg:
+                raise
+            # Network or retryable error after all attempts
             last_error = e
             if attempt < max_retries:
                 wait = 2 ** (attempt + 1)
-                print(f"⏳ Network error ({e}). Waiting {wait}s before retry {attempt + 1}/{max_retries}...")
+                print(f"⏳ {msg}. Waiting {wait}s before retry {attempt + 1}/{max_retries}...")
                 time.sleep(wait)
                 continue
             raise
@@ -303,8 +308,6 @@ def _parse_article_json(text):
         data = json.loads(text)
     except json.JSONDecodeError as e:
         print(f"⚠️ JSON decode failed, attempting to recover: {e}")
-        # Some models put trailing commas or wrap in extra prose
-        # Try to find the first { ... last } block
         start = text.find("{")
         end = text.rfind("}")
         if start != -1 and end > start:
@@ -375,7 +378,6 @@ def call_groq(repo):
         body, _ = _post_json_with_retry(
             "https://api.groq.com/openai/v1/chat/completions",
             payload,
-            # Origin/Referer headers help bypass Cloudflare bot detection
             headers={
                 "Authorization": f"Bearer {GROQ_API_KEY}",
                 "Origin": "https://console.groq.com",
@@ -390,19 +392,98 @@ def call_groq(repo):
         return None
 
 
+def _discover_openrouter_free_models():
+    """
+    Query OpenRouter's /models endpoint and return a list of currently
+    available free models (id contains ':free').
+
+    This makes the script self-adapting: if OpenRouter adds or removes
+    free models, we automatically pick what's available right now.
+    """
+    print("🔎 Discovering currently-available OpenRouter free models...")
+    try:
+        response = requests.get(
+            "https://openrouter.ai/api/v1/models",
+            headers=_BROWSER_HEADERS,
+            timeout=15,
+        )
+        response.raise_for_status()
+        data = response.json()
+        all_models = data.get("data", [])
+
+        # Free models either end with ":free" or have pricing.prompt == "0"
+        free_models = []
+        for m in all_models:
+            model_id = m.get("id", "")
+            pricing = m.get("pricing", {})
+            try:
+                prompt_price = float(pricing.get("prompt", "1") or "1")
+            except (ValueError, TypeError):
+                prompt_price = 1.0
+            if ":free" in model_id or prompt_price == 0:
+                free_models.append(model_id)
+
+        if not free_models:
+            print("⚠️ No free models found in OpenRouter catalog")
+            return []
+
+        # Sort so popular ones are tried first (rough heuristic by name)
+        priority_prefixes = [
+            "google/",
+            "qwen/",
+            "meta-llama/llama",
+            "deepseek/",
+            "mistralai/",
+            "nousresearch/",
+            "microsoft/",
+        ]
+        def sort_key(model_id):
+            for i, prefix in enumerate(priority_prefixes):
+                if model_id.startswith(prefix):
+                    return (i, model_id)
+            return (99, model_id)
+        free_models.sort(key=sort_key)
+
+        print(f"✅ Found {len(free_models)} free models. Will try in this order:")
+        for i, m in enumerate(free_models[:8], 1):  # show top 8
+            print(f"   {i}. {m}")
+        if len(free_models) > 8:
+            print(f"   ... and {len(free_models) - 8} more")
+        return free_models
+    except Exception as e:
+        print(f"⚠️ Could not discover OpenRouter models: {e}")
+        # Fall back to a known list (in case discovery fails)
+        return [
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "mistralai/mistral-7b-instruct:free",
+            "google/gemma-2-9b-it:free",
+        ]
+
+
+# Cache the discovered models so we only hit /models once per run
+_OPENROUTER_FREE_MODELS_CACHE = None
+
+
 def call_openrouter(repo):
     """
     Generate an article using OpenRouter (free model aggregator).
 
-    CHANGED: now tries multiple free models in sequence. The popular
-    `meta-llama/llama-3.3-70b-instruct:free` model is rate-limited most
-    of the time, so we try Gemini Flash via OpenRouter first, then Qwen,
-    then DeepSeek, then Llama as last resort.
+    Models are discovered at runtime via OpenRouter's /models endpoint,
+    so the script adapts to whatever free models are currently available.
     """
+    global _OPENROUTER_FREE_MODELS_CACHE
     if not OPENROUTER_API_KEY:
         return None
 
-    for model in OPENROUTER_MODELS:
+    if _OPENROUTER_FREE_MODELS_CACHE is None:
+        _OPENROUTER_FREE_MODELS_CACHE = _discover_openrouter_free_models()
+
+    models = _OPENROUTER_FREE_MODELS_CACHE
+    if not models:
+        print("🚨 No OpenRouter free models to try")
+        return None
+
+    for model in models:
         print(f"🤖 Calling OpenRouter ({model}) for {repo['full_name']}...")
         payload = {
             "model": model,
@@ -424,22 +505,28 @@ def call_openrouter(repo):
                 },
             )
             data = json.loads(body)
-            # OpenRouter returns a 'reason' field when content is filtered or empty
+
+            # OpenRouter signals errors in the response body even with 200
             if data.get("choices", [{}])[0].get("finish_reason") == "error":
-                err = data.get("error", {})
-                print(f"⚠️ OpenRouter model {model} returned error: {err}")
+                err_msg = data.get("error", {}).get("message", "unknown error")
+                print(f"⚠️ OpenRouter model {model} returned error: {err_msg}")
                 continue
+
             text = data["choices"][0]["message"]["content"]
             result = _parse_article_json(text)
             if result:
                 print(f"✅ OpenRouter model {model} succeeded")
                 return result
         except Exception as e:
+            err_str = str(e)
+            # 404 = model doesn't exist, skip to next without retry
+            if "HTTP 404" in err_str:
+                print(f"⏭️ Skipping {model} (not found in OpenRouter catalog)")
+                continue
             print(f"🚨 OpenRouter model {model} failed: {e}")
-            # Try the next model in the list
             continue
 
-    print(f"🚨 All OpenRouter models failed (tried {len(OPENROUTER_MODELS)} free models)")
+    print(f"🚨 All {len(models)} OpenRouter models failed")
     return None
 
 
@@ -515,34 +602,42 @@ def generate_with_providers(repo):
     """
     Walk the provider priority chain and return the first successful result.
 
-    Adds a small delay between providers to be friendly to rate limiters,
-    so a 429 on provider 1 doesn't immediately cascade into 429s on 2 and 3.
+    Tracks per-provider outcomes so we can give a useful summary if all fail.
     """
-    failed_codes = []
+    attempts = []  # (name, success_bool, error_message)
+
     for idx, (name, fn) in enumerate(PROVIDER_CHAIN):
         if idx > 0:
-            # Small delay so we don't hammer the next API immediately
             time.sleep(DELAY_BETWEEN_PROVIDERS_SEC)
         try:
             result = fn(repo)
             if result:
                 print(f"✅ Article generated via {name}")
                 return result
-        except HTTPError as e:
-            failed_codes.append((name, e.code))
-            print(f"⚠️ {name} returned HTTP {e.code}")
+            attempts.append((name, False, "no result"))
         except Exception as e:
-            print(f"⚠️ {name} provider raised an unhandled exception: {e}")
+            attempts.append((name, False, str(e)))
+            print(f"⚠️ {name} raised: {e}")
+
+    print("\n📊 Provider attempts summary:")
+    for name, success, err in attempts:
+        status = "✅" if success else "❌"
+        print(f"   {status} {name:<12} → {err if not success else 'success'}")
 
     # Friendly explanation when all providers failed for the same reason
-    if failed_codes and all(c == 429 for _, c in failed_codes):
-        print("ℹ️  All providers returned 429 — you're rate-limited everywhere.")
-        print("   Wait 60 seconds and try again, or upgrade to a paid tier.")
-    elif failed_codes and all(c == 403 for _, c in failed_codes):
-        print("ℹ️  All providers returned 403 — your IP may be blocked.")
-        print("   Try from a different network (mobile hotspot, different VPN endpoint).")
+    failure_modes = [err for _, success, err in attempts if not success]
+    if failure_modes:
+        if all("HTTP 429" in e for e in failure_modes):
+            print("\nℹ️  All providers returned 429 — you're rate-limited everywhere.")
+            print("   Wait 60 seconds and try again, or upgrade to a paid tier.")
+        elif all("HTTP 403" in e or "Cloudflare" in e for e in failure_modes):
+            print("\nℹ️  All providers returned 403/Cloudflare blocks.")
+            print("   Your IP may be flagged. Try from a different network.")
+        elif all("HTTP 404" in e for e in failure_modes):
+            print("\nℹ️  All providers returned 404 — model names changed or keys invalid.")
+            print("   Check that your API keys are correct and the models still exist.")
 
-    print("ℹ️  Falling back to template article")
+    print("\nℹ️  Falling back to template article")
     return fallback_article(repo)
 
 
@@ -557,8 +652,6 @@ def fallback_article(repo):
     url = repo["url"]
     description = repo["description"] or "a popular open-source developer tool"
     install_url = repo.get("install_url")
-    # Add a unique minute-suffix to avoid Supabase duplicate key conflicts
-    # when the same repo trends on multiple days
     minute_suffix = datetime.now().strftime("%H%M")
     slug = f"{slugify(name)}-{date.today().strftime('%Y-%m-%d')}-{minute_suffix}"
 
@@ -676,7 +769,6 @@ def synthesize_article():
     generated = generate_with_providers(repo)
 
     slug = generated.get("slug") or slugify(generated.get("title", repo["name"]))
-    # Ensure slug contains a date
     if not re.search(r"\d{4}-\d{2}-\d{2}", slug):
         slug = f"{slug}-{date.today().strftime('%Y-%m-%d')}"
 
@@ -699,56 +791,44 @@ def synthesize_article():
 
 
 # ====================================================================
-# Supabase push — CHANGED to use UPSERT (no more duplicate-slug errors)
+# Supabase push (UPSERT — duplicate-safe)
 # ====================================================================
 
 def push_to_supabase_cloud(article_obj):
     """
     Push the article to Supabase as an in-review draft.
 
-    Uses PostgREST's upsert behavior: if a row with the same `slug` already
-    exists, it will be updated instead of throwing a duplicate-key error.
-    This makes the worker safely idempotent — running it twice in a day
-    updates the existing draft instead of failing.
+    Uses PostgREST's upsert behavior: if a row with the same `slug`
+    already exists, it will be updated instead of throwing a
+    duplicate-key error.
     """
     print(f"⚡ Pushing draft to Supabase: {article_obj['title']}")
 
-    # The `on_conflict=slug` query parameter tells PostgREST to treat the
-    # slug column as the conflict resolution key for upserts.
     endpoint = f"{SUPABASE_URL.rstrip('/')}/rest/v1/articles?on_conflict=slug"
 
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
-        # `resolution=merge-duplicates` turns the INSERT into an UPSERT.
-        # When the row exists, it gets merged (existing non-null values win,
-        # new non-null values overwrite, nulls are left alone).
         "Prefer": "resolution=merge-duplicates,return=minimal",
-        "User-Agent": "ApexPulse-Autopilot-Worker/1.2",
+        "User-Agent": "ApexPulse-Autopilot-Worker/1.3",
     }
 
-    req = urllib.request.Request(
-        endpoint,
-        data=json.dumps(article_obj).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=15) as res:
-            if res.status in (200, 201, 204):
-                print(f"🎉 Draft saved/updated in Supabase: {article_obj['slug']}")
-                return True
-            else:
-                print(f"⚠️ Supabase returned unexpected status: {res.status}")
-                return False
-    except HTTPError as e:
-        print(f"🚨 Supabase HTTP error ({e.code}): {e.read().decode('utf-8')}")
-        print("💡 Hint: Check that your RLS policy allows inserts into the 'articles' table.")
-        print("💡 Hint: Confirm the 'slug' column has a UNIQUE constraint in your schema.")
-        return False
-    except Exception as e:
+        response = requests.post(
+            endpoint,
+            json=article_obj,
+            headers=headers,
+            timeout=15,
+        )
+        if response.status_code in (200, 201, 204):
+            print(f"🎉 Draft saved/updated in Supabase: {article_obj['slug']}")
+            return True
+        else:
+            print(f"⚠️ Supabase returned unexpected status: {response.status_code}")
+            print(f"   Body: {response.text[:300]}")
+            return False
+    except requests.exceptions.RequestException as e:
         print(f"🚨 Supabase network error: {e}")
         return False
 
