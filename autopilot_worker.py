@@ -6,17 +6,45 @@ from datetime import datetime, date
 from urllib.error import HTTPError
 
 # ====================================================================
-# APEX PULSE — AUTOPILOT CONTENT WORKER
-# Generates a genuine, helpful technical article from a trending open-source
-# repository and pushes it to Supabase as an in-review draft for human approval.
+# APEX PULSE — AUTOPILOT CONTENT WORKER (Multi-Provider Edition)
+# --------------------------------------------------------------------
+# Provider priority chain (first available wins):
+#   1. Gemini        — free, highest quality, 1,500 req/day
+#   2. Groq          — free, fastest inference
+#   3. OpenRouter    — free, multi-model aggregator
+#   4. OpenAI        — paid (you may have signup credits)
+#   5. Claude        — paid
+#   6. Template      — curated fallback, always works
+#
+# Generates a genuine, helpful technical article from a trending
+# open-source repository and pushes it to Supabase as an in-review
+# draft for human approval. Never auto-publishes.
 # ====================================================================
 
 # --- Credentials (loaded only from environment variables) ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
+
+# --- Free providers (recommended) ---
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
+
+# --- Paid providers (optional, used as fallback after free ones) ---
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "").strip()
 
+# --- Model names ---
+# Free-tier models that work well for structured technical JSON output.
+# Change these to any model your provider account supports.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+
+
+# ====================================================================
+# Credential helpers
+# ====================================================================
 
 def require_env(name, value):
     """Abort early if a required environment variable is missing."""
@@ -36,22 +64,58 @@ def load_credentials():
         raise SystemExit("❌ SUPABASE_URL must begin with https://")
 
 
-# --- Helpers ---
+def active_provider():
+    """Return the first provider that has a key configured."""
+    if GEMINI_API_KEY:      return "Gemini"
+    if GROQ_API_KEY:        return "Groq"
+    if OPENROUTER_API_KEY:  return "OpenRouter"
+    if OPENAI_API_KEY:      return "OpenAI"
+    if CLAUDE_API_KEY:      return "Claude"
+    return "Template (no LLM key configured)"
 
-def slugify(text):
-    return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
 
+# ====================================================================
+# Low-level HTTP helpers
+# ====================================================================
 
 def fetch_url(url, headers=None, timeout=15):
     """Simple GET helper with a custom user-agent."""
     req_headers = {
-        "User-Agent": "ApexPulse-Autopilot-Worker/1.0 (Educational Content Bot)"
+        "User-Agent": "ApexPulse-Autopilot-Worker/1.1 (Educational Content Bot)"
     }
     if headers:
         req_headers.update(headers)
     req = urllib.request.Request(url, headers=req_headers)
     with urllib.request.urlopen(req, timeout=timeout) as res:
         return res.read().decode("utf-8")
+
+
+def _post_json(url, payload, headers=None, timeout=60):
+    """POST JSON helper with consistent error handling."""
+    req_headers = {"Content-Type": "application/json"}
+    if headers:
+        req_headers.update(headers)
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=req_headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
+            return res.read().decode("utf-8"), res.status
+    except HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace") if e.fp else ""
+        print(f"🚨 HTTP {e.code} from {url.split('?')[0]}: {body[:240]}")
+        raise
+
+
+# ====================================================================
+# Topic discovery
+# ====================================================================
+
+def slugify(text):
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
 def fetch_github_trending():
@@ -63,21 +127,21 @@ def fetch_github_trending():
     try:
         html = fetch_url("https://github.com/trending/python?since=daily")
 
-        # Extract the first repository <article> block.
+        # Extract the first repository block.
         article_match = re.search(
             r'<article[^>]*class="[^"]*Box-row[^"]*"[^>]*>(.*?)</article>',
             html,
-            re.DOTALL
+            re.DOTALL,
         )
         if not article_match:
             return None
         article = article_match.group(1)
 
-        # Repo link: the first <a> inside the h2 block.
+        # Repo link inside the h2 block.
         link_match = re.search(
             r'<h2[^>]*class="h3 lh-condensed"[^>]*>\s*<a[^>]*href="/([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)"[^>]*>',
             article,
-            re.DOTALL
+            re.DOTALL,
         )
         if not link_match:
             return None
@@ -86,26 +150,26 @@ def fetch_github_trending():
 
         # Description
         desc_match = re.search(
-            r'<p[^>]*class="col-9[^"]*"[^>]*>(.*?)</p>',
+            r'<p[^>]*class="col-9[^"]*"[^>]*>(.*?)\n</p>',
             article,
-            re.DOTALL
+            re.DOTALL,
         )
         description = ""
         if desc_match:
-            description = re.sub(r'<[^>]+>', '', desc_match.group(1)).strip()
-            description = description.replace('&amp;', '&')
+            description = re.sub(r"<[^>]+>", "", desc_match.group(1)).strip()
+            description = description.replace("&amp;", "&")
 
         # Star count
         stars_match = re.search(
-            r'<a[^>]*href="/{0}/stargazers"[^>]*>.*?([\d,\.]+[kKmM]?)\s*stars?.*?</a>'.format(re.escape(full_name)),
+            r'href="/{0}/stargazers"[^>]*>.*?([\d,\.]+[kKmM]?)\s*stars?.*?'.format(re.escape(full_name)),
             article,
-            re.DOTALL
+            re.DOTALL,
         )
         if not stars_match:
             stars_match = re.search(
-                r'<svg[^>]*octicon-star[^>]*>.*?</svg>\s*<span[^>]*>([\d,\.]+[kKmM]?)</span>',
+                r'octicon-star[^>]*>.*?\s*<a[^>]*>([\d,\.]+[kKmM]?)',
                 article,
-                re.DOTALL
+                re.DOTALL,
             )
         stars = stars_match.group(1) if stars_match else "trending"
 
@@ -115,7 +179,7 @@ def fetch_github_trending():
             "full_name": full_name,
             "stars": stars,
             "description": description,
-            "url": f"https://github.com/{full_name}"
+            "url": f"https://github.com/{full_name}",
         }
     except Exception as e:
         print(f"⚠️ Could not scrape GitHub trending: {e}")
@@ -131,11 +195,13 @@ def fallback_topic():
         "stars": "trending",
         "description": "An extremely fast Python package and project manager, written in Rust.",
         "url": "https://github.com/astral-sh/uv",
-        "install_url": "https://astral.sh/uv/install.sh"
+        "install_url": "https://astral.sh/uv/install.sh",
     }
 
 
-# --- Content generation ---
+# ====================================================================
+# Prompt construction
+# ====================================================================
 
 SYSTEM_PROMPT = """You are a senior software engineer writing a practical, no-fluff technical blog post for an audience of experienced developers.
 
@@ -150,7 +216,25 @@ Rules:
 8. Keep the tone direct, technical, and honest.
 9. Format the article in Markdown with an H1 title, H2 sections, and H3 subsections where appropriate.
 10. The article should be 600-1,000 words.
-"""
+
+You MUST respond with a single JSON object and nothing else. No prose before or after the JSON. No markdown code fences around the JSON."""
+
+
+def _build_user_prompt(repo):
+    return (
+        f"Write a Markdown technical blog post about the open-source project "
+        f"{repo['full_name']} ({repo['url']}).\n\n"
+        f"GitHub description: {repo['description']}\n\n"
+        f"The slug should be '{slugify(repo['name'])}-{date.today().strftime('%Y-%m-%d')}'.\n"
+        f"Include a front-matter style meta description and target keyword.\n\n"
+        f"Return ONLY a JSON object with these exact keys:\n"
+        f"- title (string)\n"
+        f"- slug (string)\n"
+        f"- meta_description (string, 120-160 chars)\n"
+        f"- target_keyword (string)\n"
+        f"- secondary_keywords (string, comma separated)\n"
+        f"- content (string, Markdown article body, 600-1000 words)\n"
+    )
 
 
 def _strip_json_fences(text):
@@ -165,52 +249,141 @@ def _strip_json_fences(text):
     return text.strip()
 
 
+def _parse_article_json(text):
+    """Parse and validate the article JSON returned by any provider."""
+    text = _strip_json_fences(text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        # Some models wrap JSON in trailing commas or single quotes.
+        print(f"⚠️ JSON decode failed, attempting to recover: {e}")
+        return None
+    required = ["title", "content", "meta_description", "target_keyword"]
+    missing = [k for k in required if k not in data or not data[k]]
+    if missing:
+        print(f"⚠️ Generated JSON missing required fields: {missing}")
+        return None
+    return data
+
+
+# ====================================================================
+# Provider implementations
+# ====================================================================
+
+def call_gemini(repo):
+    """Generate an article using Google Gemini (free tier)."""
+    if not GEMINI_API_KEY:
+        return None
+    print(f"🤖 Calling Google Gemini ({GEMINI_MODEL}) for {repo['full_name']}...")
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [
+            {"role": "user", "parts": [{"text": _build_user_prompt(repo)}]}
+        ],
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "generationConfig": {
+            "temperature": 0.6,
+            "maxOutputTokens": 4096,
+            "responseMimeType": "application/json",
+        },
+    }
+    try:
+        body, _ = _post_json(url, payload)
+        data = json.loads(body)
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return _parse_article_json(text)
+    except Exception as e:
+        print(f"🚨 Gemini request failed: {e}")
+        return None
+
+
+def call_groq(repo):
+    """Generate an article using Groq (free, fast inference)."""
+    if not GROQ_API_KEY:
+        return None
+    print(f"🤖 Calling Groq ({GROQ_MODEL}) for {repo['full_name']}...")
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _build_user_prompt(repo)},
+        ],
+        "temperature": 0.6,
+        "max_tokens": 4096,
+        "response_format": {"type": "json_object"},
+    }
+    try:
+        body, _ = _post_json(
+            "https://api.groq.com/openai/v1/chat/completions",
+            payload,
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+        )
+        data = json.loads(body)
+        text = data["choices"][0]["message"]["content"]
+        return _parse_article_json(text)
+    except Exception as e:
+        print(f"🚨 Groq request failed: {e}")
+        return None
+
+
+def call_openrouter(repo):
+    """Generate an article using OpenRouter (free model aggregator)."""
+    if not OPENROUTER_API_KEY:
+        return None
+    print(f"🤖 Calling OpenRouter ({OPENROUTER_MODEL}) for {repo['full_name']}...")
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _build_user_prompt(repo)},
+        ],
+        "temperature": 0.6,
+        "max_tokens": 4096,
+    }
+    try:
+        body, _ = _post_json(
+            "https://openrouter.ai/api/v1/chat/completions",
+            payload,
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://blog-liart-five-46.vercel.app",
+                "X-Title": "Apex Pulse Autopilot",
+            },
+        )
+        data = json.loads(body)
+        text = data["choices"][0]["message"]["content"]
+        return _parse_article_json(text)
+    except Exception as e:
+        print(f"🚨 OpenRouter request failed: {e}")
+        return None
+
+
 def call_openai(repo):
     """Generate an article using OpenAI's chat completions API."""
-    print(f"🤖 Calling OpenAI GPT-4o-mini for {repo['full_name']}...")
-    user_prompt = (
-        f"Write a Markdown technical blog post about the open-source project "
-        f"{repo['full_name']} ({repo['url']}).\n\n"
-        f"GitHub description: {repo['description']}\n\n"
-        f"The slug should be '{slugify(repo['name'])}-{date.today().strftime('%Y-%m-%d')}'.\n"
-        f"Include a front-matter style meta description and target keyword.\n\n"
-        f"Return ONLY a JSON object with these keys:\n"
-        f"- title (string)\n"
-        f"- slug (string)\n"
-        f"- meta_description (string, 120-160 chars)\n"
-        f"- target_keyword (string)\n"
-        f"- secondary_keywords (string, comma separated)\n"
-        f"- content (string, Markdown article body)\n"
-    )
-
+    if not OPENAI_API_KEY:
+        return None
+    print(f"🤖 Calling OpenAI (gpt-4o-mini) for {repo['full_name']}...")
     payload = {
         "model": "gpt-4o-mini",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": _build_user_prompt(repo)},
         ],
         "temperature": 0.6,
-        "response_format": {"type": "json_object"}
+        "response_format": {"type": "json_object"},
     }
-
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json"
-        },
-        method="POST"
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=60) as res:
-            data = json.loads(res.read().decode("utf-8"))
-            raw = _strip_json_fences(data["choices"][0]["message"]["content"])
-            return json.loads(raw)
-    except HTTPError as e:
-        print(f"🚨 OpenAI API error: {e.code} {e.read().decode('utf-8')}")
-        return None
+        body, _ = _post_json(
+            "https://api.openai.com/v1/chat/completions",
+            payload,
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+        )
+        data = json.loads(body)
+        raw = data["choices"][0]["message"]["content"]
+        return _parse_article_json(raw)
     except Exception as e:
         print(f"🚨 OpenAI request failed: {e}")
         return None
@@ -218,48 +391,67 @@ def call_openai(repo):
 
 def call_claude(repo):
     """Generate an article using Anthropic's Messages API."""
-    print(f"🤖 Calling Claude 3.5 Sonnet for {repo['full_name']}...")
-    user_prompt = (
-        f"Write a Markdown technical blog post about the open-source project "
-        f"{repo['full_name']} ({repo['url']}).\n\n"
-        f"GitHub description: {repo['description']}\n\n"
-        f"The slug should be '{slugify(repo['name'])}-{date.today().strftime('%Y-%m-%d')}'.\n"
-        f"Return ONLY a JSON object with these keys: title, slug, meta_description, target_keyword, secondary_keywords, content. "
-        f"The content field must contain the full Markdown article body. "
-        f"Do not wrap the JSON in markdown code fences."
-    )
-
+    if not CLAUDE_API_KEY:
+        return None
+    print(f"🤖 Calling Claude (claude-3-5-sonnet) for {repo['full_name']}...")
     payload = {
         "model": "claude-3-5-sonnet-20241022",
-        "max_tokens": 2048,
+        "max_tokens": 4096,
         "temperature": 0.6,
         "system": SYSTEM_PROMPT,
-        "messages": [{"role": "user", "content": user_prompt}]
+        "messages": [{"role": "user", "content": _build_user_prompt(repo)}],
     }
-
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "x-api-key": CLAUDE_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json"
-        },
-        method="POST"
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=60) as res:
-            data = json.loads(res.read().decode("utf-8"))
-            raw = _strip_json_fences(data["content"][0]["text"])
-            return json.loads(raw)
-    except HTTPError as e:
-        print(f"🚨 Claude API error: {e.code} {e.read().decode('utf-8')}")
-        return None
+        body, _ = _post_json(
+            "https://api.anthropic.com/v1/messages",
+            payload,
+            headers={
+                "x-api-key": CLAUDE_API_KEY,
+                "anthropic-version": "2023-06-01",
+            },
+        )
+        data = json.loads(body)
+        raw = data["content"][0]["text"]
+        return _parse_article_json(raw)
     except Exception as e:
         print(f"🚨 Claude request failed: {e}")
         return None
 
+
+# ====================================================================
+# Provider priority chain
+# ====================================================================
+
+PROVIDER_CHAIN = [
+    ("Gemini",     call_gemini),
+    ("Groq",       call_groq),
+    ("OpenRouter", call_openrouter),
+    ("OpenAI",     call_openai),
+    ("Claude",     call_claude),
+]
+
+
+def generate_with_providers(repo):
+    """
+    Walk the provider priority chain and return the first successful result.
+    Each provider is allowed to fail independently; we move to the next.
+    """
+    for name, fn in PROVIDER_CHAIN:
+        try:
+            result = fn(repo)
+            if result:
+                print(f"✅ Article generated via {name}")
+                return result
+        except Exception as e:
+            print(f"⚠️ {name} provider raised an unhandled exception: {e}")
+
+    print("ℹ️  All LLM providers failed or no key set — using template fallback")
+    return fallback_article(repo)
+
+
+# ====================================================================
+# Curated template fallback (no LLM required)
+# ====================================================================
 
 def fallback_article(repo):
     """
@@ -267,10 +459,10 @@ def fallback_article(repo):
     No affiliate links, no fake claims, no keyword stuffing.
     """
     print(f"📝 Using template-based fallback for {repo['full_name']}...")
-    name = repo['name']
-    full_name = repo['full_name']
-    url = repo['url']
-    description = repo['description'] or "a popular open-source developer tool"
+    name = repo["name"]
+    full_name = repo["full_name"]
+    url = repo["url"]
+    description = repo["description"] or "a popular open-source developer tool"
     install_url = repo.get("install_url")
     slug = f"{slugify(name)}-{date.today().strftime('%Y-%m-%d')}"
 
@@ -369,9 +561,13 @@ For the latest features and installation instructions, refer to the official rep
         "meta_description": meta,
         "target_keyword": name,
         "secondary_keywords": keywords,
-        "content": content
+        "content": content,
     }
 
+
+# ====================================================================
+# Article synthesis (combines trending topic + provider output)
+# ====================================================================
 
 def synthesize_article():
     """Pick a trending topic and generate a genuine technical article."""
@@ -380,17 +576,11 @@ def synthesize_article():
         repo = fallback_topic()
 
     print(f"✅ Selected topic: {repo['full_name']}")
+    print(f"🔌 Active provider chain: {active_provider()}")
 
-    generated = None
-    if OPENAI_API_KEY:
-        generated = call_openai(repo)
-    elif CLAUDE_API_KEY:
-        generated = call_claude(repo)
+    generated = generate_with_providers(repo)
 
-    if not generated:
-        generated = fallback_article(repo)
-
-    # Normalize the generated object to the Supabase schema
+    # Normalize to Supabase schema
     slug = generated.get("slug") or slugify(generated.get("title", repo["name"]))
     if not re.search(r"\d{4}-\d{2}-\d{2}", slug):
         slug = f"{slug}-{date.today().strftime('%Y-%m-%d')}"
@@ -398,7 +588,9 @@ def synthesize_article():
     return {
         "slug": slug,
         "title": generated.get("title", repo["name"]),
-        "meta_description": generated.get("meta_description", f"A practical guide to {repo['full_name']}"),
+        "meta_description": generated.get(
+            "meta_description", f"A practical guide to {repo['full_name']}"
+        ),
         "category": "Tech & AI",
         "target_keyword": generated.get("target_keyword", repo["name"]),
         "secondary_keywords": generated.get("secondary_keywords", ""),
@@ -407,11 +599,13 @@ def synthesize_article():
         "seo_score": 85,
         "pageviews": 1,
         "status": "in_review",
-        "published_at": date.today().isoformat()
+        "published_at": date.today().isoformat(),
     }
 
 
-# --- Supabase push ---
+# ====================================================================
+# Supabase push
+# ====================================================================
 
 def push_to_supabase_cloud(article_obj):
     """Push the article to Supabase as an in-review draft."""
@@ -424,19 +618,19 @@ def push_to_supabase_cloud(article_obj):
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
         "Prefer": "return=minimal",
-        "User-Agent": "ApexPulse-Autopilot-Worker/1.0"
+        "User-Agent": "ApexPulse-Autopilot-Worker/1.1",
     }
 
     req = urllib.request.Request(
         endpoint,
         data=json.dumps(article_obj).encode("utf-8"),
         headers=headers,
-        method="POST"
+        method="POST",
     )
 
     try:
         with urllib.request.urlopen(req, timeout=15) as res:
-            if res.status in [200, 201, 204]:
+            if res.status in (200, 201, 204):
                 print(f"🎉 Draft saved to Supabase moderation queue: {article_obj['slug']}")
                 return True
             else:
@@ -450,6 +644,10 @@ def push_to_supabase_cloud(article_obj):
         print(f"🚨 Supabase network error: {e}")
         return False
 
+
+# ====================================================================
+# Entry point
+# ====================================================================
 
 def run_autopilot_flywheel():
     load_credentials()

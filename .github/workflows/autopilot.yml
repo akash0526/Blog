@@ -1,10 +1,10 @@
-name: Apex Cloud Autopilot Affiliate Flywheel
+name: Apex Cloud Autopilot — Multi-Provider Edition
 
 on:
   schedule:
     # Executes automatically every single night at 3:00 AM local Nepal time (21:15 UTC)
     - cron: '15 21 * * *'
-  workflow_dispatch: # Allows 1-click manual manual triggering inside the GitHub Actions tab
+  workflow_dispatch: # Allows 1-click manual triggering inside the GitHub Actions tab
 
 jobs:
   cloud_autopilot_drop:
@@ -23,10 +23,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 🚀 Execute Standalone Niche Affiliate Synthesizer Webhook
+      - name: 🚀 Execute Multi-Provider Autopilot Flywheel
         env:
+          # Required
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+          # Free providers (recommended)
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+          # Paid providers (optional)
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
         run: python3 autopilot_worker.py
