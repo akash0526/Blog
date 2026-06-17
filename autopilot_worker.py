@@ -11,42 +11,11 @@ from urllib.error import HTTPError
 # repository and pushes it to Supabase as an in-review draft for human approval.
 # ====================================================================
 
-<<<<<<< HEAD
-# ====================================================================
-# SECURITY NOTE
-# These credentials are intentionally loaded ONLY from environment
-# variables. Never hardcode keys here or commit them to git. The
-# project ships a .env.example template; copy it to .env for local
-# development, and set repository secrets for GitHub Actions.
-# ====================================================================
-=======
 # --- Credentials (loaded only from environment variables) ---
->>>>>>> 8d0cda5 (changes)
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "").strip()
-<<<<<<< HEAD
-
-
-def require_env(name, value):
-    """Abort early if a required environment variable is missing."""
-    if not value:
-        raise SystemExit(
-            f"❌ Environment variable '{name}' is missing. "
-            "Set it in your .env file or GitHub repository secrets, "
-            "then run the worker again."
-        )
-
-
-def load_credentials():
-    """Validate required cloud credentials before any network call."""
-    require_env("SUPABASE_URL", SUPABASE_URL)
-    require_env("SUPABASE_KEY", SUPABASE_KEY)
-    if not SUPABASE_URL.startswith("https://"):
-        raise SystemExit("❌ SUPABASE_URL must begin with https://")
-=======
->>>>>>> 8d0cda5 (changes)
 
 
 def require_env(name, value):
@@ -484,17 +453,10 @@ def push_to_supabase_cloud(article_obj):
 
 def run_autopilot_flywheel():
     load_credentials()
-<<<<<<< HEAD
-    print(f"🚀 Starting Apex Autopilot Flywheel — Issue Date: {datetime.now().isoformat()}...")
-    trending_trend = scrape_github_trending_tech()
-    affiliate_article = synthesize_helpful_affiliate_content(trending_trend)
-    push_to_supabase_cloud(affiliate_article)
-=======
     print(f"🚀 Starting Apex Autopilot Flywheel — {datetime.now().isoformat()}")
     article = synthesize_article()
     push_to_supabase_cloud(article)
 
->>>>>>> 8d0cda5 (changes)
 
 if __name__ == "__main__":
     run_autopilot_flywheel()
