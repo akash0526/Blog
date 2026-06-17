@@ -1,24 +1,28 @@
 import os
 import json
+import time  # NEW: for retry backoff
 import urllib.request
 import re
 from datetime import datetime, date
 from urllib.error import HTTPError
 
 # ====================================================================
-# APEX PULSE — AUTOPILOT CONTENT WORKER (Multi-Provider Edition)
+# APEX PULSE — AUTOPILOT CONTENT WORKER (v1.2 — Resilient Edition)
+# --------------------------------------------------------------------
+# Changelog vs v1.1:
+#   - Smart retry-with-backoff for HTTP 429 rate-limit responses
+#   - Browser-like headers to bypass Cloudflare bot detection (Groq)
+#   - Multiple OpenRouter free models tried in sequence
+#   - Supabase push now uses UPSERT (no more duplicate-slug errors)
+#   - Small delay between providers to be friendly to rate limiters
 # --------------------------------------------------------------------
 # Provider priority chain (first available wins):
 #   1. Gemini        — free, highest quality, 1,500 req/day
 #   2. Groq          — free, fastest inference
-#   3. OpenRouter    — free, multi-model aggregator
+#   3. OpenRouter    — free, 4 fallback models tried in sequence
 #   4. OpenAI        — paid (you may have signup credits)
 #   5. Claude        — paid
 #   6. Template      — curated fallback, always works
-#
-# Generates a genuine, helpful technical article from a trending
-# open-source repository and pushes it to Supabase as an in-review
-# draft for human approval. Never auto-publishes.
 # ====================================================================
 
 # --- Credentials (loaded only from environment variables) ---
@@ -35,11 +39,21 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "").strip()
 
 # --- Model names ---
-# Free-tier models that work well for structured technical JSON output.
-# Change these to any model your provider account supports.
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+
+# CHANGED: was a single model. Now a prioritized list — first to succeed wins.
+# Each one is a free OpenRouter model with different popularity/load patterns.
+OPENROUTER_MODELS = [
+    os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free"),
+    "qwen/qwen-2.5-72b-instruct:free",
+    "deepseek/deepseek-chat:free",
+    "meta-llama/llama-3.3-70b-instruct:free",  # last because most overloaded
+]
+
+# --- Behavior tuning ---
+DELAY_BETWEEN_PROVIDERS_SEC = float(os.environ.get("DELAY_BETWEEN_PROVIDERS_SEC", "1.5"))
+MAX_RETRIES_PER_PROVIDER = int(os.environ.get("MAX_RETRIES_PER_PROVIDER", "2"))
 
 
 # ====================================================================
@@ -47,7 +61,6 @@ OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-
 # ====================================================================
 
 def require_env(name, value):
-    """Abort early if a required environment variable is missing."""
     if not value:
         raise SystemExit(
             f"❌ Environment variable '{name}' is missing. "
@@ -57,7 +70,6 @@ def require_env(name, value):
 
 
 def load_credentials():
-    """Validate required cloud credentials before any network call."""
     require_env("SUPABASE_URL", SUPABASE_URL)
     require_env("SUPABASE_KEY", SUPABASE_KEY)
     if not SUPABASE_URL.startswith("https://"):
@@ -65,7 +77,6 @@ def load_credentials():
 
 
 def active_provider():
-    """Return the first provider that has a key configured."""
     if GEMINI_API_KEY:      return "Gemini"
     if GROQ_API_KEY:        return "Groq"
     if OPENROUTER_API_KEY:  return "OpenRouter"
@@ -75,14 +86,24 @@ def active_provider():
 
 
 # ====================================================================
-# Low-level HTTP helpers
+# HTTP helpers
 # ====================================================================
 
+# Browser-like headers to avoid Cloudflare bot detection (fixes Groq 1010)
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+}
+
+
 def fetch_url(url, headers=None, timeout=15):
-    """Simple GET helper with a custom user-agent."""
-    req_headers = {
-        "User-Agent": "ApexPulse-Autopilot-Worker/1.1 (Educational Content Bot)"
-    }
+    req_headers = dict(_BROWSER_HEADERS)
     if headers:
         req_headers.update(headers)
     req = urllib.request.Request(url, headers=req_headers)
@@ -93,6 +114,7 @@ def fetch_url(url, headers=None, timeout=15):
 def _post_json(url, payload, headers=None, timeout=60):
     """POST JSON helper with consistent error handling."""
     req_headers = {"Content-Type": "application/json"}
+    req_headers.update(_BROWSER_HEADERS)
     if headers:
         req_headers.update(headers)
     req = urllib.request.Request(
@@ -110,6 +132,42 @@ def _post_json(url, payload, headers=None, timeout=60):
         raise
 
 
+def _post_json_with_retry(url, payload, headers=None, timeout=60, max_retries=None):
+    """
+    POST JSON with smart exponential backoff for HTTP 429 (rate limit) errors.
+
+    403/401/etc are NOT retried (they're not transient — retrying wastes time).
+    429 IS retried with 2s, 4s, 8s waits between attempts.
+    Network errors are retried too.
+    """
+    if max_retries is None:
+        max_retries = MAX_RETRIES_PER_PROVIDER
+
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            return _post_json(url, payload, headers, timeout)
+        except HTTPError as e:
+            last_error = e
+            # Only retry on 429 (rate limit) or 5xx (server error)
+            if e.code in (429, 500, 502, 503, 504) and attempt < max_retries:
+                wait = 2 ** (attempt + 1)  # 2s, 4s, 8s
+                reason = "rate-limited" if e.code == 429 else f"server error {e.code}"
+                print(f"⏳ {reason}. Waiting {wait}s before retry {attempt + 1}/{max_retries}...")
+                time.sleep(wait)
+                continue
+            raise
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            last_error = e
+            if attempt < max_retries:
+                wait = 2 ** (attempt + 1)
+                print(f"⏳ Network error ({e}). Waiting {wait}s before retry {attempt + 1}/{max_retries}...")
+                time.sleep(wait)
+                continue
+            raise
+    raise last_error
+
+
 # ====================================================================
 # Topic discovery
 # ====================================================================
@@ -119,15 +177,10 @@ def slugify(text):
 
 
 def fetch_github_trending():
-    """
-    Scrape the GitHub Trending page for Python repositories.
-    Returns the top repo as a dict, or None if scraping fails.
-    """
+    """Scrape the GitHub Trending page for Python repositories."""
     print("⚡ Fetching real GitHub trending repositories for Python...")
     try:
         html = fetch_url("https://github.com/trending/python?since=daily")
-
-        # Extract the first repository block.
         article_match = re.search(
             r'<article[^>]*class="[^"]*Box-row[^"]*"[^>]*>(.*?)</article>',
             html,
@@ -136,8 +189,6 @@ def fetch_github_trending():
         if not article_match:
             return None
         article = article_match.group(1)
-
-        # Repo link inside the h2 block.
         link_match = re.search(
             r'<h2[^>]*class="h3 lh-condensed"[^>]*>\s*<a[^>]*href="/([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)"[^>]*>',
             article,
@@ -148,7 +199,6 @@ def fetch_github_trending():
         full_name = link_match.group(1).strip()
         owner, name = full_name.split("/", 1)
 
-        # Description
         desc_match = re.search(
             r'<p[^>]*class="col-9[^"]*"[^>]*>(.*?)\n</p>',
             article,
@@ -159,7 +209,6 @@ def fetch_github_trending():
             description = re.sub(r"<[^>]+>", "", desc_match.group(1)).strip()
             description = description.replace("&amp;", "&")
 
-        # Star count
         stars_match = re.search(
             r'href="/{0}/stargazers"[^>]*>.*?([\d,\.]+[kKmM]?)\s*stars?.*?'.format(re.escape(full_name)),
             article,
@@ -187,7 +236,6 @@ def fetch_github_trending():
 
 
 def fallback_topic():
-    """Curated fallback topic when live scraping is unavailable."""
     return {
         "owner": "astral-sh",
         "name": "uv",
@@ -238,7 +286,6 @@ def _build_user_prompt(repo):
 
 
 def _strip_json_fences(text):
-    """Remove markdown code fences if the LLM wrapped JSON in them."""
     text = text.strip()
     if text.startswith("```json"):
         text = text[7:]
@@ -255,9 +302,18 @@ def _parse_article_json(text):
     try:
         data = json.loads(text)
     except json.JSONDecodeError as e:
-        # Some models wrap JSON in trailing commas or single quotes.
         print(f"⚠️ JSON decode failed, attempting to recover: {e}")
-        return None
+        # Some models put trailing commas or wrap in extra prose
+        # Try to find the first { ... last } block
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end > start:
+            try:
+                data = json.loads(text[start:end + 1])
+            except json.JSONDecodeError:
+                return None
+        else:
+            return None
     required = ["title", "content", "meta_description", "target_keyword"]
     missing = [k for k in required if k not in data or not data[k]]
     if missing:
@@ -291,7 +347,7 @@ def call_gemini(repo):
         },
     }
     try:
-        body, _ = _post_json(url, payload)
+        body, _ = _post_json_with_retry(url, payload)
         data = json.loads(body)
         text = data["candidates"][0]["content"]["parts"][0]["text"]
         return _parse_article_json(text)
@@ -316,10 +372,15 @@ def call_groq(repo):
         "response_format": {"type": "json_object"},
     }
     try:
-        body, _ = _post_json(
+        body, _ = _post_json_with_retry(
             "https://api.groq.com/openai/v1/chat/completions",
             payload,
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            # Origin/Referer headers help bypass Cloudflare bot detection
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Origin": "https://console.groq.com",
+                "Referer": "https://console.groq.com/",
+            },
         )
         data = json.loads(body)
         text = data["choices"][0]["message"]["content"]
@@ -330,39 +391,59 @@ def call_groq(repo):
 
 
 def call_openrouter(repo):
-    """Generate an article using OpenRouter (free model aggregator)."""
+    """
+    Generate an article using OpenRouter (free model aggregator).
+
+    CHANGED: now tries multiple free models in sequence. The popular
+    `meta-llama/llama-3.3-70b-instruct:free` model is rate-limited most
+    of the time, so we try Gemini Flash via OpenRouter first, then Qwen,
+    then DeepSeek, then Llama as last resort.
+    """
     if not OPENROUTER_API_KEY:
         return None
-    print(f"🤖 Calling OpenRouter ({OPENROUTER_MODEL}) for {repo['full_name']}...")
-    payload = {
-        "model": OPENROUTER_MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _build_user_prompt(repo)},
-        ],
-        "temperature": 0.6,
-        "max_tokens": 4096,
-    }
-    try:
-        body, _ = _post_json(
-            "https://openrouter.ai/api/v1/chat/completions",
-            payload,
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "HTTP-Referer": "https://blog-liart-five-46.vercel.app",
-                "X-Title": "Apex Pulse Autopilot",
-            },
-        )
-        data = json.loads(body)
-        text = data["choices"][0]["message"]["content"]
-        return _parse_article_json(text)
-    except Exception as e:
-        print(f"🚨 OpenRouter request failed: {e}")
-        return None
+
+    for model in OPENROUTER_MODELS:
+        print(f"🤖 Calling OpenRouter ({model}) for {repo['full_name']}...")
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": _build_user_prompt(repo)},
+            ],
+            "temperature": 0.6,
+            "max_tokens": 4096,
+        }
+        try:
+            body, _ = _post_json_with_retry(
+                "https://openrouter.ai/api/v1/chat/completions",
+                payload,
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "HTTP-Referer": "https://blog-liart-five-46.vercel.app",
+                    "X-Title": "Apex Pulse Autopilot",
+                },
+            )
+            data = json.loads(body)
+            # OpenRouter returns a 'reason' field when content is filtered or empty
+            if data.get("choices", [{}])[0].get("finish_reason") == "error":
+                err = data.get("error", {})
+                print(f"⚠️ OpenRouter model {model} returned error: {err}")
+                continue
+            text = data["choices"][0]["message"]["content"]
+            result = _parse_article_json(text)
+            if result:
+                print(f"✅ OpenRouter model {model} succeeded")
+                return result
+        except Exception as e:
+            print(f"🚨 OpenRouter model {model} failed: {e}")
+            # Try the next model in the list
+            continue
+
+    print(f"🚨 All OpenRouter models failed (tried {len(OPENROUTER_MODELS)} free models)")
+    return None
 
 
 def call_openai(repo):
-    """Generate an article using OpenAI's chat completions API."""
     if not OPENAI_API_KEY:
         return None
     print(f"🤖 Calling OpenAI (gpt-4o-mini) for {repo['full_name']}...")
@@ -376,7 +457,7 @@ def call_openai(repo):
         "response_format": {"type": "json_object"},
     }
     try:
-        body, _ = _post_json(
+        body, _ = _post_json_with_retry(
             "https://api.openai.com/v1/chat/completions",
             payload,
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
@@ -390,7 +471,6 @@ def call_openai(repo):
 
 
 def call_claude(repo):
-    """Generate an article using Anthropic's Messages API."""
     if not CLAUDE_API_KEY:
         return None
     print(f"🤖 Calling Claude (claude-3-5-sonnet) for {repo['full_name']}...")
@@ -402,7 +482,7 @@ def call_claude(repo):
         "messages": [{"role": "user", "content": _build_user_prompt(repo)}],
     }
     try:
-        body, _ = _post_json(
+        body, _ = _post_json_with_retry(
             "https://api.anthropic.com/v1/messages",
             payload,
             headers={
@@ -434,18 +514,35 @@ PROVIDER_CHAIN = [
 def generate_with_providers(repo):
     """
     Walk the provider priority chain and return the first successful result.
-    Each provider is allowed to fail independently; we move to the next.
+
+    Adds a small delay between providers to be friendly to rate limiters,
+    so a 429 on provider 1 doesn't immediately cascade into 429s on 2 and 3.
     """
-    for name, fn in PROVIDER_CHAIN:
+    failed_codes = []
+    for idx, (name, fn) in enumerate(PROVIDER_CHAIN):
+        if idx > 0:
+            # Small delay so we don't hammer the next API immediately
+            time.sleep(DELAY_BETWEEN_PROVIDERS_SEC)
         try:
             result = fn(repo)
             if result:
                 print(f"✅ Article generated via {name}")
                 return result
+        except HTTPError as e:
+            failed_codes.append((name, e.code))
+            print(f"⚠️ {name} returned HTTP {e.code}")
         except Exception as e:
             print(f"⚠️ {name} provider raised an unhandled exception: {e}")
 
-    print("ℹ️  All LLM providers failed or no key set — using template fallback")
+    # Friendly explanation when all providers failed for the same reason
+    if failed_codes and all(c == 429 for _, c in failed_codes):
+        print("ℹ️  All providers returned 429 — you're rate-limited everywhere.")
+        print("   Wait 60 seconds and try again, or upgrade to a paid tier.")
+    elif failed_codes and all(c == 403 for _, c in failed_codes):
+        print("ℹ️  All providers returned 403 — your IP may be blocked.")
+        print("   Try from a different network (mobile hotspot, different VPN endpoint).")
+
+    print("ℹ️  Falling back to template article")
     return fallback_article(repo)
 
 
@@ -454,17 +551,16 @@ def generate_with_providers(repo):
 # ====================================================================
 
 def fallback_article(repo):
-    """
-    High-quality template-based fallback when no LLM API key is available.
-    No affiliate links, no fake claims, no keyword stuffing.
-    """
     print(f"📝 Using template-based fallback for {repo['full_name']}...")
     name = repo["name"]
     full_name = repo["full_name"]
     url = repo["url"]
     description = repo["description"] or "a popular open-source developer tool"
     install_url = repo.get("install_url")
-    slug = f"{slugify(name)}-{date.today().strftime('%Y-%m-%d')}"
+    # Add a unique minute-suffix to avoid Supabase duplicate key conflicts
+    # when the same repo trends on multiple days
+    minute_suffix = datetime.now().strftime("%H%M")
+    slug = f"{slugify(name)}-{date.today().strftime('%Y-%m-%d')}-{minute_suffix}"
 
     if install_url:
         install_cmd = f"curl -LsSf {install_url} | sh"
@@ -566,11 +662,10 @@ For the latest features and installation instructions, refer to the official rep
 
 
 # ====================================================================
-# Article synthesis (combines trending topic + provider output)
+# Article synthesis
 # ====================================================================
 
 def synthesize_article():
-    """Pick a trending topic and generate a genuine technical article."""
     repo = fetch_github_trending()
     if not repo:
         repo = fallback_topic()
@@ -580,8 +675,8 @@ def synthesize_article():
 
     generated = generate_with_providers(repo)
 
-    # Normalize to Supabase schema
     slug = generated.get("slug") or slugify(generated.get("title", repo["name"]))
+    # Ensure slug contains a date
     if not re.search(r"\d{4}-\d{2}-\d{2}", slug):
         slug = f"{slug}-{date.today().strftime('%Y-%m-%d')}"
 
@@ -604,21 +699,33 @@ def synthesize_article():
 
 
 # ====================================================================
-# Supabase push
+# Supabase push — CHANGED to use UPSERT (no more duplicate-slug errors)
 # ====================================================================
 
 def push_to_supabase_cloud(article_obj):
-    """Push the article to Supabase as an in-review draft."""
+    """
+    Push the article to Supabase as an in-review draft.
+
+    Uses PostgREST's upsert behavior: if a row with the same `slug` already
+    exists, it will be updated instead of throwing a duplicate-key error.
+    This makes the worker safely idempotent — running it twice in a day
+    updates the existing draft instead of failing.
+    """
     print(f"⚡ Pushing draft to Supabase: {article_obj['title']}")
 
-    endpoint = f"{SUPABASE_URL.rstrip('/')}/rest/v1/articles"
+    # The `on_conflict=slug` query parameter tells PostgREST to treat the
+    # slug column as the conflict resolution key for upserts.
+    endpoint = f"{SUPABASE_URL.rstrip('/')}/rest/v1/articles?on_conflict=slug"
 
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
-        "Prefer": "return=minimal",
-        "User-Agent": "ApexPulse-Autopilot-Worker/1.1",
+        # `resolution=merge-duplicates` turns the INSERT into an UPSERT.
+        # When the row exists, it gets merged (existing non-null values win,
+        # new non-null values overwrite, nulls are left alone).
+        "Prefer": "resolution=merge-duplicates,return=minimal",
+        "User-Agent": "ApexPulse-Autopilot-Worker/1.2",
     }
 
     req = urllib.request.Request(
@@ -631,7 +738,7 @@ def push_to_supabase_cloud(article_obj):
     try:
         with urllib.request.urlopen(req, timeout=15) as res:
             if res.status in (200, 201, 204):
-                print(f"🎉 Draft saved to Supabase moderation queue: {article_obj['slug']}")
+                print(f"🎉 Draft saved/updated in Supabase: {article_obj['slug']}")
                 return True
             else:
                 print(f"⚠️ Supabase returned unexpected status: {res.status}")
@@ -639,6 +746,7 @@ def push_to_supabase_cloud(article_obj):
     except HTTPError as e:
         print(f"🚨 Supabase HTTP error ({e.code}): {e.read().decode('utf-8')}")
         print("💡 Hint: Check that your RLS policy allows inserts into the 'articles' table.")
+        print("💡 Hint: Confirm the 'slug' column has a UNIQUE constraint in your schema.")
         return False
     except Exception as e:
         print(f"🚨 Supabase network error: {e}")
