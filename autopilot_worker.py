@@ -11,15 +11,35 @@ from datetime import datetime, date
 # injects affiliate links, and pushes directly to Supabase Cloud Database.
 # ====================================================================
 
+# ====================================================================
+# SECURITY NOTE
+# These credentials are intentionally loaded ONLY from environment
+# variables. Never hardcode keys here or commit them to git. The
+# project ships a .env.example template; copy it to .env for local
+# development, and set repository secrets for GitHub Actions.
+# ====================================================================
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
-if not SUPABASE_URL or SUPABASE_URL.startswith("*") or not SUPABASE_URL.startswith("http"):
-    SUPABASE_URL = "https://qygrnvneeoxotpzgolvp.supabase.co"
-
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
-if not SUPABASE_KEY or SUPABASE_KEY.startswith("*"):
-    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5Z3Judm5lZW94b3RwemdvbHZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDA2MjAsImV4cCI6MjA5NzE3NjYyMH0.qRItOoiqDo2lpUo4J38T-QJyWCHDL-zVsTUWrzy0xV0"
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "").strip()
+
+
+def require_env(name, value):
+    """Abort early if a required environment variable is missing."""
+    if not value:
+        raise SystemExit(
+            f"❌ Environment variable '{name}' is missing. "
+            "Set it in your .env file or GitHub repository secrets, "
+            "then run the worker again."
+        )
+
+
+def load_credentials():
+    """Validate required cloud credentials before any network call."""
+    require_env("SUPABASE_URL", SUPABASE_URL)
+    require_env("SUPABASE_KEY", SUPABASE_KEY)
+    if not SUPABASE_URL.startswith("https://"):
+        raise SystemExit("❌ SUPABASE_URL must begin with https://")
 
 # Highly converting Tech Affiliate Products Matrix
 AFFILIATE_MATRIX = {
@@ -254,6 +274,7 @@ def push_to_supabase_cloud(article_obj):
         return False
 
 def run_autopilot_flywheel():
+    load_credentials()
     print(f"🚀 Starting Apex Autopilot Flywheel — Issue Date: {datetime.now().isoformat()}...")
     trending_trend = scrape_github_trending_tech()
     affiliate_article = synthesize_helpful_affiliate_content(trending_trend)

@@ -5,17 +5,20 @@
 ==================================================================== */
 
 window.ApexSupabase = {
-  // Configured with your secure Cloud credentials
+  // Credentials are loaded from browser localStorage after the user
+  // enters them via the "SEO Vault" settings panel. No hardcoded keys
+  // are shipped in the source. Keep your Supabase anon / service-role
+  // keys out of git at all times.
   config() {
     return {
-      url: localStorage.getItem("apex_supabase_url") || "https://qygrnvneeoxotpzgolvp.supabase.co",
-      key: localStorage.getItem("apex_supabase_key") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5Z3Judm5lZW94b3RwemdvbHZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDA2MjAsImV4cCI6MjA5NzE3NjYyMH0.qRItOoiqDo2lpUo4J38T-QJyWCHDL-zVsTUWrzy0xV0",
+      url: localStorage.getItem("apex_supabase_url") || "",
+      key: localStorage.getItem("apex_supabase_key") || "",
     };
   },
 
   isConnected() {
     const c = this.config();
-    return c.url.trim() !== "" && c.key.trim() !== "";
+    return c.url.trim() !== "" && c.key.trim() !== "" && c.url.startsWith("https://");
   },
 
   saveCredentials(url, key) {
