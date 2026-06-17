@@ -110,12 +110,12 @@ window.ApexSupabase = {
   async fetchLiveArticles() {
     if (!this.isConnected()) {
       // Gracefully yield back to sandboxed persistent memory if offline
-      return window.ApexStateManager.getArticles();
+      return await window.ApexStateManager.getArticles();
     }
-    
+
     // Request only fully approved pieces to protect your Google Helpful Content authority
     const res = await this.request("articles?status=eq.published&order=published_at.desc");
-    return Array.isArray(res) ? res.map(r => this.normalizeArticle(r)) : window.ApexStateManager.getArticles();
+    return Array.isArray(res) ? res.map(r => this.normalizeArticle(r)) : await window.ApexStateManager.getArticles();
   },
 
   /**
@@ -123,7 +123,7 @@ window.ApexSupabase = {
    */
   async fetchModerationQueue() {
     if (!this.isConnected()) {
-      const local = window.ApexStateManager.getArticles();
+      const local = await window.ApexStateManager.getArticles();
       return local.filter(a => a.status === "in_review");
     }
 
@@ -137,7 +137,7 @@ window.ApexSupabase = {
   async saveArticle(articleObj) {
     if (!this.isConnected()) {
       // Run normal LocalStorage manager execution
-      const list = window.ApexStateManager.getArticles();
+      const list = await window.ApexStateManager.getArticles();
       const existingIdx = list.findIndex(a => a.id === articleObj.id || a.slug === articleObj.slug);
       if (existingIdx >= 0) {
         list[existingIdx] = articleObj;

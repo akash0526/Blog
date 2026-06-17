@@ -5,7 +5,8 @@
 
 class ApexApplication {
   constructor() {
-    this.articles = window.ApexStateManager.getArticles();
+    // Articles are loaded asynchronously from ./articles.json or localStorage.
+    this.articles = [];
     this.kanbanCards = window.ApexStateManager.getKanban();
     this.streakStats = window.ApexStateManager.getStreakStats();
     
@@ -39,12 +40,26 @@ class ApexApplication {
 
   init() {
     const startApp = async () => {
-      // Universal Live Cloud Synchronization! If Supabase is active, fetch live real-world published dispatches straight from PostgreSQL!
+      // Load canonical articles from ./articles.json or localStorage first.
+      try {
+        this.articles = await window.ApexStateManager.getArticles();
+      } catch (e) {
+        console.warn("Article Load Notice: Could not load articles; starting with empty list.", e);
+        this.articles = [];
+      }
+
+      // Universal Live Cloud Synchronization! If Supabase is active, merge live published dispatches.
       try {
         if (window.ApexSupabase?.isConnected()) {
           const livePieces = await window.ApexSupabase?.fetchLiveArticles();
           if (livePieces && livePieces.length > 0) {
-            this.articles = livePieces;
+            // Merge: live articles override local articles with the same slug.
+            const localMap = new Map(this.articles.map(a => [a.slug, a]));
+            livePieces.forEach(live => {
+              localMap.set(live.slug, live);
+            });
+            this.articles = Array.from(localMap.values());
+            window.ApexStateManager.saveArticles(this.articles);
           }
         }
       } catch(cloudErr) {
